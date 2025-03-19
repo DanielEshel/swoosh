@@ -41,7 +41,7 @@ class Comms:
   
   def _create_info_socket(self):
     if self.ip_address is not None:
-      # set and bind server's udp socket (info socket)
+      # set and bind udp socket (info socket)
       self.info_sock = socket.socket(AF_INET, SOCK_DGRAM)    
       self.info_sock.bind((self.ip_address, SWOOSHPORT_DATA))
     else:
@@ -50,8 +50,6 @@ class Comms:
   
   def _create_discovery_socket(self):
     if self.ip_address is not None:
-      # set and bind server's udp socket 
-      # (info socket)
       self.discovery_sock = socket.socket(AF_INET, SOCK_DGRAM)    
       self.discovery_sock.bind((self.ip_address, SWOOSHPORT_DISCOVER))
     else:
@@ -65,14 +63,14 @@ class Comms:
     
     while True:
         try:
-          msg, addr = self.server_socket.recvfrom(1024)
+          msg, addr = self.info_sock.recvfrom(1024)
         except:
           print("got trash or error @_handle_messages")
         finally:
           # exchange keys if don't have keys yet
           if addr not in self.crypt.shared_udp_keys:
             try:
-              self.crypt.exchange_keys(self.server_socket, addr, msg)
+              self.crypt.exchange_keys(self.info_sock, addr, msg)
             except Exception as e:
               print(e, f"key exchange error @_handle_messages")
           else:
@@ -95,26 +93,34 @@ class Comms:
     
 
   def _answer_publish(self):
-    
+    """
+    listens for and answers peer's publishment arp packets
+    """
     if self.ip_address is None:
       print('_answer_publish exited, no ip address')
       return
     
     def discovery_packet_filter(p):
+      """
+      filters out publishment arp packets
+      """
       return ARP in p and p[ARP].pdst == '0.1.1.1' and p[ARP].psrc != self.ip_address and p[ARP].psrc not in self.available_peers
     
     def send_response(p):
+      """
+      sends out udp responses to the published arp requests
+      """
       peer_ip = p[ARP].psrc
       print(f"sent response to {peer_ip}")
       response = self.name.ljust(16)[:16].encode()
-      self.info_sock.sendto(response, (peer_ip, SWOOSHPORT_DISCOVER))
+      self.discovery_sock.sendto(response, (peer_ip, SWOOSHPORT_DISCOVER))
       
     sniff(lfilter=discovery_packet_filter, prn=send_response)
     
     
   def _publish(self):
     """
-    sends a discovery packet every 3 seconds
+    sends a publishment packet every 3 seconds
     """
     if self.ip_address is None:
       print('_publish exited, no ip address')
@@ -130,6 +136,9 @@ class Comms:
        
         
   def _discover(self):
+    """
+    discovers peers that have answered the publishment packets we sent
+    """
     if self.ip_address is None:
       print('_discover exited, no ip address')
       return
