@@ -1,185 +1,123 @@
-from socket import socket, AF_INET, SOCK_DGRAM
+import asyncio
 import psutil
-from scapy.all import sniff, ARP, IP, UDP, Ether, sendp
-import queue
-from comms_crypt import *
-import time
-import threading
+from scapy.all import sniff, ARP, Ether, sendp
+from socket import AF_INET
+from comms_crypt import CommsCrypt
+
+SWOOSHPORT_DISCOVER = 9999
+SWOOSHPORT_DATA = 9998
 
 
 class Comms:
-  def __init__(self, name: str):
-    self.name = name
-    self.recv_q = queue.Queue()
-    self.send_q = queue.Queue()
-    
-    self.interfaces = psutil.net_if_addrs()
-    self.available_peers = {}  # all available peers
-    self.live_peers = {}  # peers using communiations
-    
-    # self.interface_name = 'Wi-Fi'
-    print(self.interfaces.keys())
-    self.interface_name = 'Wi-Fi'
-    self.ip_address = None
-    self.discovery_sock = None
-    self.info_sock = None
-    
-    self._get_ip_address()
-    self._create_discovery_socket()
-    self._create_info_socket()
-    
-    self.crypt = CommsCrypt()
-    
-    self.answering = threading.Thread(target=self._answer_publish, args=(), daemon=True)
-    self.answering.start()
-    
-    self.publish = threading.Thread(target=self._publish, args=(), daemon=True)
-    self.publish.start()
-    
-    self.discover = threading.Thread(target=self._discover, args=(), daemon=True)
-    self.discover.start()
-  
-  def _create_info_socket(self):
-    if self.ip_address is not None:
-      # set and bind udp socket (info socket)
-      self.info_sock = socket.socket(AF_INET, SOCK_DGRAM)    
-      self.info_sock.bind((self.ip_address, SWOOSHPORT_DATA))
-    else:
-      print('socket not created!')
-  
-  
-  def _create_discovery_socket(self):
-    if self.ip_address is not None:
-      self.discovery_sock = socket.socket(AF_INET, SOCK_DGRAM)    
-      self.discovery_sock.bind((self.ip_address, SWOOSHPORT_DISCOVER))
-    else:
-      print('socket not created!')
-        
-        
-  def _handle_messages(self):
-    if self.ip_address is None:
-      print('_handle_messages exited, no ip address')
-      return
-    
-    while True:
-        try:
-          msg, addr = self.info_sock.recvfrom(1024)
-        except:
-          print("got trash or error @_handle_messages")
-        finally:
-          # exchange keys if don't have keys yet
-          if addr not in self.crypt.shared_udp_keys:
-            try:
-              self.crypt.exchange_keys(self.info_sock, addr, msg)
-            except Exception as e:
-              print(e, f"key exchange error @_handle_messages")
-          else:
-            try:
-              msg = self.crypt.decrypt_udp(msg, addr).decode()
-            except Exception as e:
-              print(e, "@_handle_messages")
-            self.recv_q.put(addr, msg)
+    def __init__(self, name: str):
+        self.name = name
+        self.recv_q = asyncio.Queue()
+        self.send_q = asyncio.Queue()
 
-    
-  def _get_ip_address(self):
-    # Extract the first IPv4 address from the chosen interface
-    for addr in self.interfaces.get(self.interface_name, []):
-        if addr.family == socket.AF_INET:  # IPv4
-            self.ip_address = addr.address
-            print(f"@_get_ip_address got interface ip address: {self.ip_address}")
+        self.interfaces = psutil.net_if_addrs()
+        self.interface_name = "Wi-Fi"
+        self.ip_address = None
+
+        self.available_peers = {}
+        self.live_peers = {}
+
+        self._get_ip_address()
+
+        self.crypt = CommsCrypt()
+
+        # asyncio UDP transport/socket
+        self.discovery_transport = None
+
+    def _get_ip_address(self):
+        for addr in self.interfaces.get(self.interface_name, []):
+            if addr.family == AF_INET:
+                self.ip_address = addr.address
+                print(f"IP Address: {self.ip_address}")
+                return
+        print(f"Couldn't get IP address for interface {self.interface_name}")
+        self.ip_address = None
+
+    async def start(self):
+        if self.ip_address is None:
+            print("No IP address, cannot start comms.")
             return
-    print(f"couldn't get ip address for interface {self.interface_name}")
-    self.ip_address = None
-    
 
-  def _answer_publish(self):
-    """
-    listens for and answers peer's publishment arp packets
-    """
-    if self.ip_address is None:
-      print('_answer_publish exited, no ip address')
-      return
-    
-    def discovery_packet_filter(p):
-      """
-      filters out publishment arp packets
-      """
-      return ARP in p and p[ARP].pdst == '0.1.1.1' and p[ARP].psrc != self.ip_address and p[ARP].psrc not in self.available_peers
-    
-    def send_response(p):
-      """
-      sends out udp responses to the published arp requests
-      """
-      peer_ip = p[ARP].psrc
-      print(f"sent response to {peer_ip}")
-      response = self.name.ljust(16)[:16].encode()
-      self.discovery_sock.sendto(response, (peer_ip, SWOOSHPORT_DISCOVER))
-      
-    sniff(lfilter=discovery_packet_filter, prn=send_response)
-    
-    
-  def _publish(self):
-    """
-    sends a publishment packet every 3 seconds
-    """
-    if self.ip_address is None:
-      print('_publish exited, no ip address')
-      return
-    
-    # ehter dst='FF:FF:FF:FF:FF:FF' , type=0x86
-    discover_packet = Ether() / ARP(op='who-has', pdst='0.1.1.1', psrc=self.ip_address)
-    
-    while True:
-      print("discovering", discover_packet)
-      sendp(discover_packet, iface=self.interface_name, verbose=False)
-      time.sleep(3)
-       
-        
-  def _discover(self):
-    """
-    discovers peers that have answered the publishment packets we sent
-    """
-    if self.ip_address is None:
-      print('_discover exited, no ip address')
-      return
-    
-    peer_name = None
-    while True:
-      data, peer_addr = self.discovery_sock.recvfrom(16)
-      peer_name = data.decode()
-      print(f'found peer!!! {peer_addr}')
-      self.available_peers[peer_addr] = peer_name
-      
-    # def discovery_packet_filter(p):
-    #   return IP in p and p[IP].dst == self.ip_address and UDP in p and p[UDP].dport == SWOOSHPORT_DISCOVER
-    
-    # def handle_packet(p):
-    #   print(f"got response from {p[IP].src}")
-    #   self.live_servers.append(p[IP].src)
-      
-    # sniff(lfilter=discovery_packet_filter, prn=handle_packet)
-    
-  async def connect(self, peer_addr: tuple[str, int]):
-    """
-    establish connection with host
-    """
-    # make sure peer has been discovered
-    if peer_addr not in self.available_peers:
-      self.crypt.exchange_keys(self.info_sock, peer_addr, None)
-      
-      await peer_addr in self.crypt.shared_udp_keys
-      print(f"now officially peering with {peer_addr}")
-      self.live_peers[peer_addr] = None
-        
-        
-        
-def main():
-  
-  comms = Comms('Daniel')
-  
-    
-  input("press enter to exit")
-  
-  
+        # Start UDP discovery socket listener
+        await self._start_discovery_socket()
+
+        # Start ARP responder in background thread
+        asyncio.create_task(self._start_arp_sniffer())
+
+        # Start periodic ARP discovery
+        asyncio.create_task(self._publish_discovery())
+
+        # Start discovery response handler
+        asyncio.create_task(self._handle_discovery_responses())
+
+    async def _start_discovery_socket(self):
+        loop = asyncio.get_running_loop()
+        self.discovery_transport, _ = await loop.create_datagram_endpoint(
+            lambda: self.DiscoveryProtocol(self),
+            local_addr=(self.ip_address, SWOOSHPORT_DISCOVER),
+        )
+        print(f"Discovery socket listening on {self.ip_address}:{SWOOSHPORT_DISCOVER}")
+
+    class DiscoveryProtocol(asyncio.DatagramProtocol):
+        def __init__(self, comms):
+            self.comms = comms
+
+        def datagram_received(self, data, addr):
+            peer_name = data.decode().strip()
+            print(f"Received discovery response from {addr}: {peer_name}")
+            self.comms.available_peers[addr] = peer_name
+
+    async def _publish_discovery(self):
+        if self.ip_address is None:
+            print("Cannot publish discovery, no IP address.")
+            return
+
+        discover_packet = Ether() / ARP(
+            op="who-has", pdst="0.1.1.1", psrc=self.ip_address
+        )
+
+        while True:
+            sendp(discover_packet, iface=self.interface_name, verbose=False)
+            print("Sent ARP discovery packet")
+            await asyncio.sleep(3)
+
+    async def _start_arp_sniffer(self):
+        def discovery_filter(p):
+            return (
+                ARP in p and p[ARP].pdst == "0.1.1.1" and p[ARP].psrc != self.ip_address
+            )
+
+        def handle_arp(p):
+            peer_ip = p[ARP].psrc
+            if peer_ip not in self.available_peers:
+                print(f"Received ARP from {peer_ip}, sending response")
+                response = self.name.ljust(16)[:16].encode()
+                self.discovery_transport.sendto(
+                    response, (peer_ip, SWOOSHPORT_DISCOVER)
+                )
+
+        print("Starting ARP sniffer...")
+        sniff(filter="arp", lfilter=discovery_filter, prn=handle_arp, store=False)
+
+    async def _handle_discovery_responses(self):
+        # Additional logic to process discovered peers if needed
+        while True:
+            await asyncio.sleep(1)
+            # You can add peer timeout handling, logs, etc.
+
+
+# ---------- Main ----------
+
+
+async def main():
+    comms = Comms("Daniel")
+    await comms.start()
+    await asyncio.sleep(60)  # Keep running for demo
+
+
 if __name__ == "__main__":
-  main()
+    asyncio.run(main())
