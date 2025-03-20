@@ -2,13 +2,14 @@ import asyncio
 import psutil
 from scapy.all import sniff, ARP, Ether, sendp
 from socket import AF_INET
+from swoosh_ports import *
 from comms_crypt import CommsCrypt
-
-SWOOSHPORT_DISCOVER = 9999
-SWOOSHPORT_DATA = 9998
 
 
 class Comms:
+
+    discovery_ip = "0.1.1.1"
+
     def __init__(self, name: str):
         self.name = name
         self.recv_q = asyncio.Queue()
@@ -25,8 +26,11 @@ class Comms:
 
         self.crypt = CommsCrypt()
 
-        # asyncio UDP transport/socket
-        self.discovery_transport = None
+        # asyncio UDP socket
+        self.discovery_socket = None
+        
+        # asyncio UDP socket
+        self.info_socket = None
 
     def _get_ip_address(self):
         for addr in self.interfaces.get(self.interface_name, []):
@@ -46,17 +50,19 @@ class Comms:
         await self._start_discovery_socket()
 
         # Start ARP responder in background thread
-        asyncio.create_task(self._start_arp_sniffer())
+        asyncio.to_thread(self._sniff_arp)
 
         # Start periodic ARP discovery
         asyncio.create_task(self._publish_discovery())
 
         # Start discovery response handler
         asyncio.create_task(self._handle_discovery_responses())
+        
+        asyncio.create_task(self._handle_)
 
     async def _start_discovery_socket(self):
         loop = asyncio.get_running_loop()
-        self.discovery_transport, _ = await loop.create_datagram_endpoint(
+        self.discovery_socket, _ = await loop.create_datagram_endpoint(
             lambda: self.DiscoveryProtocol(self),
             local_addr=(self.ip_address, SWOOSHPORT_DISCOVER),
         )
@@ -77,7 +83,7 @@ class Comms:
             return
 
         discover_packet = Ether() / ARP(
-            op="who-has", pdst="0.1.1.1", psrc=self.ip_address
+            op="who-has", pdst=Comms.discovery_ip, psrc=self.ip_address
         )
 
         while True:
@@ -85,10 +91,16 @@ class Comms:
             print("Sent ARP discovery packet")
             await asyncio.sleep(3)
 
-    async def _start_arp_sniffer(self):
+    def _sniff_arp(self):
+        """
+        sniffing for arp messages
+        """
+
         def discovery_filter(p):
             return (
-                ARP in p and p[ARP].pdst == "0.1.1.1" and p[ARP].psrc != self.ip_address
+                ARP in p
+                and p[ARP].pdst == Comms.discovery_ip
+                and p[ARP].psrc != self.ip_address
             )
 
         def handle_arp(p):
@@ -96,7 +108,7 @@ class Comms:
             if peer_ip not in self.available_peers:
                 print(f"Received ARP from {peer_ip}, sending response")
                 response = self.name.ljust(16)[:16].encode()
-                self.discovery_transport.sendto(
+                self.discovery_socket.sendto(
                     response, (peer_ip, SWOOSHPORT_DISCOVER)
                 )
 
