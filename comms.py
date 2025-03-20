@@ -9,14 +9,15 @@ from comms_crypt import CommsCrypt
 class Comms:
 
     discovery_ip = "0.1.1.1"
+    interfaces = psutil.net_if_addrs()
 
-    def __init__(self, name: str):
+    def __init__(self, name: str, interface_name: str):
         self.name = name
+        self.interface_name = interface_name
+        
         self.recv_q = asyncio.Queue()
         self.send_q = asyncio.Queue()
 
-        self.interfaces = psutil.net_if_addrs()
-        self.interface_name = "Wi-Fi"
         self.ip_address = None
 
         self.available_peers = {}
@@ -50,7 +51,7 @@ class Comms:
         await self._start_discovery_socket()
 
         # Start ARP responder in background thread
-        asyncio.to_thread(self._sniff_arp)
+        asyncio.create_task(asyncio.to_thread(self._sniff_arp))
 
         # Start periodic ARP discovery
         asyncio.create_task(self._publish_discovery())
@@ -58,7 +59,6 @@ class Comms:
         # Start discovery response handler
         asyncio.create_task(self._handle_discovery_responses())
         
-        asyncio.create_task(self._handle_)
 
     async def _start_discovery_socket(self):
         loop = asyncio.get_running_loop()
@@ -126,7 +126,17 @@ class Comms:
 
 
 async def main():
-    comms = Comms("Daniel")
+    print(f"{'_'*10}SELECT INTERFACE{'_'*10}")
+    
+    available_interfaces = {i: v for i, v in enumerate(Comms.interfaces, start=1)}
+    
+    for num, interface in available_interfaces.items():
+        print(f"{num} - {interface}")
+        
+    interface_num = int(input("interface: "))
+    interface_name = available_interfaces[interface_num]
+    
+    comms = Comms("Daniel", interface_name)
     await comms.start()
     await asyncio.sleep(60)  # Keep running for demo
 

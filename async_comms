@@ -1,0 +1,29 @@
+[33mcommit 4512b44c67bdae972508a2ec2ecc88f51799cd87[m[33m ([m[1;36mHEAD -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m)[m
+Author: DanielEshel <esheld23@gmail.com>
+Date:   Wed Mar 19 17:28:42 2025 +0200
+
+    cleaned client-server and finallized move to p2p
+
+[33mcommit faac7ed9ca90ffcf99e277d45a0780bf408eddc0[m
+Author: DanielEshel <esheld23@gmail.com>
+Date:   Wed Mar 19 16:08:46 2025 +0200
+
+    updated requirements.txt
+
+[33mcommit 30d5c5abdaf6c5147be17bfcd741b2f470481ff3[m
+Author: Daniel <103838022+DanielEshel@users.noreply.github.com>
+Date:   Tue Mar 18 17:39:20 2025 +0200
+
+    Update README.md
+
+[33mcommit d6246535c295e6ada9d067c3d21e0a0d7b5d9a7d[m
+Author: Daniel Eshel <esheld23@gmail.com>
+Date:   Tue Mar 18 17:38:57 2025 +0200
+
+    started code
+
+[33mcommit 89a52520854d867eb11078dd388680e67d367d56[m
+Author: Daniel Eshel <esheld23@gmail.com>
+Date:   Tue Mar 18 17:37:02 2025 +0200
+
+    first commit
