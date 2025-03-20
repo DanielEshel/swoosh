@@ -77,8 +77,9 @@ class Comms:
 
         def datagram_received(self, data, addr):
             peer_name = data.decode().strip()
+            peer_ip = addr[0]
             print(f"Received discovery response from {addr}: {peer_name}")
-            self.comms.available_peers[addr] = peer_name
+            self.comms.available_peers[peer_ip] = peer_name
 
     async def _publish_discovery(self):
         if self.ip_address is None:
@@ -109,6 +110,7 @@ class Comms:
 
         def handle_arp(p):
             peer_ip = p[ARP].psrc
+            
             if peer_ip not in self.available_peers:
                 print(f"Received ARP from {peer_ip}, sending response")
                 response = self.name.ljust(16)[:16].encode()
