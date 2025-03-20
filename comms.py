@@ -4,6 +4,7 @@ from scapy.all import sniff, ARP, Ether, sendp
 from socket import AF_INET
 from swoosh_ports import *
 from comms_crypt import CommsCrypt
+import threading
 
 
 class Comms:
@@ -19,6 +20,7 @@ class Comms:
         self.send_q = asyncio.Queue()
 
         self.ip_address = None
+        self.arp_sniffing_thread = None
 
         self.available_peers = {}
         self.live_peers = {}
@@ -50,8 +52,9 @@ class Comms:
         # Start UDP discovery socket listener
         await self._start_discovery_socket()
 
-        # Start ARP responder in background thread
-        asyncio.create_task(asyncio.to_thread(self._sniff_arp))
+        # build and satrt arp_sniffing_thread
+        self.arp_sniffing_thread = threading.Thread(target=self._sniff_arp, args=(), daemon=True)
+        self.arp_sniffing_thread.start()
 
         # Start periodic ARP discovery
         asyncio.create_task(self._publish_discovery())
@@ -91,6 +94,7 @@ class Comms:
             print("Sent ARP discovery packet")
             await asyncio.sleep(3)
 
+    
     def _sniff_arp(self):
         """
         sniffing for arp messages
@@ -138,7 +142,7 @@ async def main():
     
     comms = Comms("Daniel", interface_name)
     await comms.start()
-    await asyncio.sleep(60)  # Keep running for demo
+    await asyncio.to_thread(input, "press Enter to exit...")# Keep running for demo
 
 
 if __name__ == "__main__":
