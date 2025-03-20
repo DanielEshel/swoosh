@@ -22,6 +22,7 @@ class Comms:
         self.ip_address = None
         self.arp_sniffing_thread = None
 
+        self.available_peers_lock = threading.Lock()
         self.available_peers = {}
         self.live_peers = {}
 
@@ -79,7 +80,9 @@ class Comms:
             peer_name = data.decode().strip()
             peer_ip = addr[0]
             print(f"Received discovery response from {addr}: {peer_name}")
-            self.comms.available_peers[peer_ip] = peer_name
+            
+            with self.comms.available_peers_lock:
+                self.comms.available_peers[peer_ip] = peer_name
 
     async def _publish_discovery(self):
         if self.ip_address is None:
@@ -110,9 +113,10 @@ class Comms:
 
         def handle_arp(p):
             peer_ip = p[ARP].psrc
-            
-            if peer_ip not in self.available_peers:
-                print(f"Received ARP from {peer_ip}, sending response")
+            with self.available_peers_lock:
+                known = peer_ip in self.available_peers  
+            if not known:
+                print(f"New ARP from {peer_ip}, sending response")
                 response = self.name.ljust(16)[:16].encode()
                 self.discovery_socket.sendto(
                     response, (peer_ip, SWOOSHPORT_DISCOVER)
