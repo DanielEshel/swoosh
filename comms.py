@@ -88,7 +88,6 @@ class Comms:
             with self.comms.available_peers_lock:
                 # send discovery response if peer hasn't been discovered yet
                 if peer_ip not in self.comms.available_peers:
-                    print("sending again for some reason")
                     self.comms._send_discovery_response(peer_ip)
                 print(f"at DiscoveryProtocol {self.comms.available_peers}")
                 self.comms.available_peers[peer_ip] = peer_name
@@ -128,7 +127,6 @@ class Comms:
 
             with self.available_peers_lock:
                 known = peer_ip in self.available_peers
-                print(f"available peers: {self.available_peers} {known}")
                 
             if not known:
                 print(f"New ARP from {peer_ip}, sending response")
