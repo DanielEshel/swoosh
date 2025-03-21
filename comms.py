@@ -129,10 +129,10 @@ class Comms:
             with self.available_peers_lock:
                 known = peer_ip in self.available_peers
                 print(f"available peers: {self.available_peers} {known}")
-                self._send_discovery_response(peer_ip)
                 
             if not known:
                 print(f"New ARP from {peer_ip}, sending response")
+                self._send_discovery_response(peer_ip)
                 with self.available_peers_lock:
                     self.available_peers[peer_ip] = None
 
