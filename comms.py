@@ -115,6 +115,8 @@ class Comms:
             peer_ip = p[ARP].psrc
             with self.available_peers_lock:
                 known = peer_ip in self.available_peers  
+                print(f"available peers: {self.available_peers} {known}")
+            
             if not known:
                 print(f"New ARP from {peer_ip}, sending response")
                 response = self.name.ljust(16)[:16].encode()
