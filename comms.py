@@ -7,6 +7,9 @@ from comms_crypt import CommsCrypt
 import threading
 
 
+PUBLISH_DOWNTIME = 5
+
+
 class Comms:
 
     discovery_ip = "0.1.1.1"
@@ -15,7 +18,7 @@ class Comms:
     def __init__(self, name: str, interface_name: str):
         self.name = name
         self.interface_name = interface_name
-        
+
         self.recv_q = asyncio.Queue()
         self.send_q = asyncio.Queue()
 
@@ -32,7 +35,7 @@ class Comms:
 
         # asyncio UDP socket
         self.discovery_socket = None
-        
+
         # asyncio UDP socket
         self.info_socket = None
 
@@ -54,7 +57,9 @@ class Comms:
         await self._start_discovery_socket()
 
         # build and satrt arp_sniffing_thread
-        self.arp_sniffing_thread = threading.Thread(target=self._sniff_arp, args=(), daemon=True)
+        self.arp_sniffing_thread = threading.Thread(
+            target=self._sniff_arp, args=(), daemon=True
+        )
         self.arp_sniffing_thread.start()
 
         # Start periodic ARP discovery
@@ -62,7 +67,6 @@ class Comms:
 
         # Start discovery response handler
         asyncio.create_task(self._handle_discovery_responses())
-        
 
     async def _start_discovery_socket(self):
         loop = asyncio.get_running_loop()
@@ -80,8 +84,12 @@ class Comms:
             peer_name = data.decode().strip()
             peer_ip = addr[0]
             print(f"Received discovery response from {addr}: {peer_name}")
-            
+
             with self.comms.available_peers_lock:
+                # send discovery response if peer hasn't been discovered yet
+                if peer_ip not in self.comms.available_peers:
+                    self.comms._send_discovery_response(peer_ip)
+                print(f"at DiscoveryProtocol {self.comms.available_peers}")
                 self.comms.available_peers[peer_ip] = peer_name
 
     async def _publish_discovery(self):
@@ -96,9 +104,12 @@ class Comms:
         while True:
             sendp(discover_packet, iface=self.interface_name, verbose=False)
             print("Sent ARP discovery packet")
-            await asyncio.sleep(3)
+            await asyncio.sleep(PUBLISH_DOWNTIME)
 
-    
+    def _send_discovery_response(self, peer_ip):
+        response = self.name.ljust(16)[:16].encode()
+        self.discovery_socket.sendto(response, (peer_ip, SWOOSHPORT_DISCOVER))
+
     def _sniff_arp(self):
         """
         sniffing for arp messages
@@ -113,16 +124,16 @@ class Comms:
 
         def handle_arp(p):
             peer_ip = p[ARP].psrc
+
             with self.available_peers_lock:
-                known = peer_ip in self.available_peers  
+                known = peer_ip in self.available_peers
                 print(f"available peers: {self.available_peers} {known}")
-            
+                self._send_discovery_response(peer_ip)
+                
             if not known:
                 print(f"New ARP from {peer_ip}, sending response")
-                response = self.name.ljust(16)[:16].encode()
-                self.discovery_socket.sendto(
-                    response, (peer_ip, SWOOSHPORT_DISCOVER)
-                )
+                with self.available_peers_lock:
+                    self.available_peers[peer_ip] = None
 
         print("Starting ARP sniffer...")
         sniff(filter="arp", lfilter=discovery_filter, prn=handle_arp, store=False)
@@ -139,18 +150,18 @@ class Comms:
 
 async def main():
     print(f"{'_'*10}SELECT INTERFACE{'_'*10}")
-    
+
     available_interfaces = {i: v for i, v in enumerate(Comms.interfaces, start=1)}
-    
+
     for num, interface in available_interfaces.items():
         print(f"{num} - {interface}")
-        
+
     interface_num = int(input("interface: "))
     interface_name = available_interfaces[interface_num]
-    
+
     comms = Comms("Daniel", interface_name)
     await comms.start()
-    await asyncio.to_thread(input, "press Enter to exit...")# Keep running for demo
+    await asyncio.to_thread(input, "press Enter to exit...")  # Keep running for demo
 
 
 if __name__ == "__main__":
