@@ -44,7 +44,7 @@ class CommsCrypt:
         )
         return session_id
 
-    async def encrypt_tcp(self, plaintext, peer_ip, session_id):
+    def encrypt_tcp(self, plaintext: bytes | str, peer_ip: str, session_id: str):
         if (peer_ip, session_id) not in self.shared_tcp_keys:
             raise ValueError(f"no shared tcp key for {peer_ip, session_id}")
 
@@ -58,7 +58,7 @@ class CommsCrypt:
         ciphertext = aesgcm.encrypt(nonce, plaintext, None)
         return nonce + ciphertext
 
-    async def decrypt_tcp(self, encrypted_msg, peer_ip, session_id):
+    def decrypt_tcp(self, encrypted_msg: bytes, peer_ip: str, session_id: str):
         if (peer_ip, session_id) not in self.shared_tcp_keys:
             raise ValueError(f"no shared tcp key with client: {peer_ip, session_id}")
 
