@@ -197,7 +197,7 @@ class Comms:
             
         else:
             self._connected_info_servers[(peer_ip, session_id)] = writer
-            
+            print(f'exchanged keys with {peer_ip}')
             while True:
                 try:
                     msg = self.crypt.decrypt_tcp(await reader.read(1024), peer_ip, session_id)
