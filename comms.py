@@ -74,9 +74,6 @@ class Comms:
         # Start periodic ARP discovery
         asyncio.create_task(self._publish_discovery())
 
-        # Start discovery response handler
-        asyncio.create_task(self._handle_discovery_responses())
-        
 
     async def _start_discovery_socket(self):
         loop = asyncio.get_running_loop()
@@ -92,7 +89,7 @@ class Comms:
             self._handle_tcp_info, host=self.ip_address, port=SWOOSHPORT_INFO
         )
 
-        addr = self.info_server.sockets[0].getsockname()
+        addr = self.info_socket.sockets[0].getsockname()
         print(f"TCP info server started on {addr}")
 
     async def _handle_tcp_info(

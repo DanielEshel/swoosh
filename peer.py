@@ -31,7 +31,6 @@ async def main():
 
     comms = Comms("Daniel", interface_name)
     await comms.start()
-    comms.start_connection_info
     await asyncio.to_thread(get_input, "choose peer to connect to: ", comms)  # Keep running for demo
 
 
