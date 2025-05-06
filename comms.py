@@ -28,7 +28,7 @@ class Comms:
         self.available_peers_lock = threading.Lock()
         self.available_peers = {}
         
-        self.connected_info_peers = []
+        self.connected_info_peers = {}
         self.connected_info_servers = []
         
         self._connected_info_peers = {}  # writers to tcp peers connected to the server
@@ -98,8 +98,8 @@ class Comms:
         """
         * handles each tcp peer info connection
         """
-        self.connected_info_peers[peer_ip] = writer
         peer_ip = writer.get_extra_info("peername")[0]
+        self.connected_info_peers[peer_ip] = writer
 
         print(f"TCP connection from {peer_ip}")
 
@@ -185,23 +185,23 @@ class Comms:
         """
         * exchange keys, and establish connection with peer over tcp
         """
-        
-        try:
-            reader, writer = await asyncio.open_connection(peer_ip, SWOOSHPORT_INFO)
-            session_id = await self.crypt.exchange_keys_tcp(reader, writer, peer_ip)
-        except Exception as e:
-            print(f"@start_connection_info Key exchange error with {peer_ip} : {e}")
-            
-        else:
-            self._connected_info_servers[(peer_ip, session_id)] = writer
-            print(f'exchanged keys with {peer_ip}')
-            while True:
-                try:
-                    msg = self.crypt.decrypt_tcp(await reader.read(1024), peer_ip, session_id)
-                except Exception as e:
-                    print(f"@start_connection_info Error with {peer_ip}  : {e}")
-                    
-                self.recv_info_q.push(msg)
+        if(peer_ip != self.ip_address):
+            try:
+                reader, writer = await asyncio.open_connection(peer_ip, SWOOSHPORT_INFO)
+                session_id = await self.crypt.exchange_keys_tcp(reader, writer, peer_ip)
+            except Exception as e:
+                print(f"@start_connection_info Key exchange error with {peer_ip} : {e}")
+                
+            else:
+                self._connected_info_servers[(peer_ip, session_id)] = writer
+                print(f'exchanged keys with {peer_ip}')
+                while True:
+                    try:
+                        msg = self.crypt.decrypt_tcp(await reader.read(1024), peer_ip, session_id)
+                    except Exception as e:
+                        print(f"@start_connection_info Error with {peer_ip}  : {e}")
+                        
+                    self.recv_info_q.push(msg)
 
 
 # ---------- Main ----------

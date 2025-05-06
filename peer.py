@@ -15,7 +15,9 @@ async def get_available_peers(comms: Comms):
 async def get_input(msg, comms):
     user_in = input(msg)
     print(user_in)
-    await comms.start_connection_info(user_in)
+    with comms.available_peers_lock:
+        
+        await comms.start_connection_info(comms.available_peers[user_in])
     for i in range(20):
         await asyncio.sleep(1)
 
@@ -34,6 +36,7 @@ async def main():
     interface_name = available_interfaces[interface_num]
 
     comms = Comms("Daniel", interface_name)
+    asyncio.to_threadget_available_peers(comms)
     await comms.start()
     await get_input("", comms=comms)
 
