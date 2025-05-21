@@ -2,7 +2,7 @@ from comms import Comms
 import asyncio
 
 
-async def get_available_peers(comms: Comms):
+def get_available_peers(comms: Comms):
     available_peers = []
     while True:
         with comms.available_peers_lock:
@@ -36,7 +36,7 @@ async def main():
     interface_name = available_interfaces[interface_num]
 
     comms = Comms("Daniel", interface_name)
-    asyncio.to_thread(get_available_peers(comms))
+    await asyncio.to_thread(get_available_peers, comms)
     await comms.start()
     await get_input("", comms=comms)
 
