@@ -36,7 +36,7 @@ async def main():
     interface_name = available_interfaces[interface_num]
 
     comms = Comms("Daniel", interface_name)
-    asyncio.to_threadget_available_peers(comms)
+    asyncio.to_thread(get_available_peers(comms))
     await comms.start()
     await get_input("", comms=comms)
 
