@@ -3,7 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 class AppTheme {
-  static const Color primaryColor = Colors.blue;
+  static const Color primaryColor = Color(0xFF1D3557);
+  static const Color textColor = Colors.black;
   static const Color secondaryColor = Colors.amber;
   static const Color backgroundColor = Colors.white;
 
@@ -14,11 +15,19 @@ class AppTheme {
       primary: primaryColor,
       onPrimaryContainer: Colors.white,
       primaryContainer: primaryColor,
+      secondaryContainer: Colors.white,
       secondary: secondaryColor,
       surface: backgroundColor,
     ),
-
     textTheme: TextTheme(
+      
+      // text logo theme
+      headlineLarge: GoogleFonts.monda(
+        fontSize: 48, fontWeight: FontWeight.bold, color: primaryColor),
+      // text logo theme
+      headlineMedium: GoogleFonts.monda(
+        fontSize: 24, fontWeight: FontWeight.bold, color: primaryColor),
+
       // Titles
       displayLarge: GoogleFonts.monda(
         fontSize: 32, fontWeight: FontWeight.bold, color: primaryColor),

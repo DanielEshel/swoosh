@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:swoosh/widgets/custom_buttons.dart';
 
 class LoginMethodScreen extends StatelessWidget {
   const LoginMethodScreen({super.key});
@@ -16,24 +17,33 @@ class LoginMethodScreen extends StatelessWidget {
               "Choose your sign-in method",
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.w500),
             ),
-            SizedBox(height: 30),
-            ElevatedButton(
+            const SizedBox(height: 30),
+
+            // Use your custom WideButton
+            WideButton(
+              text: "Login with Email",
+              color: scheme.primaryContainer,
               onPressed: () => Navigator.pushNamed(context, '/login'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: scheme.primaryContainer,
-              ),
-              child: Text("Login with Email"),
             ),
-            SizedBox(height: 15),
-            OutlinedButton(
-              onPressed: () {},
-              child: Text("Continue with Google"),
+
+            const SizedBox(height: 15),
+
+            // Use your custom WideIconButton
+            WideIconButton(
+              text: "Continue with Google",
+              icon: Icons.g_mobiledata, // or Icons.login / Icons.account_circle
+              color: Colors.white,
+              onPressed: () {
+                // TODO: Add your Google sign-in logic here
+              },
             ),
-            SizedBox(height: 30),
+
+            const SizedBox(height: 30),
+
             TextButton(
               onPressed: () => Navigator.pushNamed(context, '/signup'),
-              child: Text("New to SWOOSH? Sign up"),
-            )
+              child: const Text("New to SWOOSH? Sign up"),
+            ),
           ],
         ),
       ),
