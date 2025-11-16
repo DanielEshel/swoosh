@@ -24,6 +24,11 @@ class WelcomeScreen extends StatelessWidget {
               style: ElevatedButton.styleFrom(
                 backgroundColor: scheme.primaryContainer,
                 padding: EdgeInsets.symmetric(horizontal: 40, vertical: 15),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.all(Radius.circular(14)),
+
+
+                ),
               ),
               child: Text("Get Started", style: TextStyle(color: scheme.onPrimary)),
             )
