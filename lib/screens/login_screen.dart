@@ -1,10 +1,44 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:swoosh/services/user_firestore.dart';
 
 class LoginScreen extends StatelessWidget {
   final TextEditingController emailController = TextEditingController();
   final TextEditingController passwordController = TextEditingController();
 
   LoginScreen({super.key});
+
+  Future<void> _login(BuildContext context) async {
+    final email = emailController.text.trim();
+    final password = passwordController.text.trim();
+
+    final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
+
+    try {
+      final cred = await FirebaseAuth.instance.signInWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
+
+      final user = cred.user;
+
+      if (user != null) {
+        // make sure user firestore doc exists
+        ensureUserDoc(user);
+        
+        navigator.pushReplacementNamed('/home');
+      }
+    } on FirebaseAuthException catch (e) {
+      messenger.showSnackBar(
+        SnackBar(content: Text(e.message ?? 'Login failed')),
+      );
+    } catch (_) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Something went wrong')),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -46,9 +80,7 @@ class LoginScreen extends StatelessWidget {
               ),
               SizedBox(height: 20),
               ElevatedButton(
-                onPressed: () {
-                  Navigator.pushReplacementNamed(context, '/home');
-                },
+                onPressed: () => _login(context),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.indigo[900],
                   padding: EdgeInsets.symmetric(horizontal: 40, vertical: 15),

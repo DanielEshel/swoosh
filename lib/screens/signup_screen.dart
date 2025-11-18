@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:swoosh/services/user_firestore.dart';
 
 class SignupScreen extends StatelessWidget {
   final TextEditingController emailController = TextEditingController();
@@ -6,6 +9,49 @@ class SignupScreen extends StatelessWidget {
   final TextEditingController confirmController = TextEditingController();
 
   SignupScreen({super.key});
+
+  Future<void> _signup(BuildContext context) async {
+    final email = emailController.text.trim();
+    final password = passwordController.text.trim();
+    final confirm = confirmController.text.trim();
+
+    // capture these BEFORE any `await`
+    final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
+
+    if (password != confirm) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Passwords do not match')),
+      );
+      return;
+    }
+
+    try {
+      final cred = await FirebaseAuth.instance
+          .createUserWithEmailAndPassword(email: email, password: password);
+
+      final user = cred.user;
+
+      if (user != null) {
+        ensureUserDoc(user);
+        // use navigator captured earlier (safe, no context here)
+        navigator.pushReplacementNamed('/home');
+      }
+
+      else{
+        
+      }
+
+    } on FirebaseAuthException catch (e) {
+      messenger.showSnackBar(
+        SnackBar(content: Text(e.message ?? 'Signup failed (${e.code})')),
+      );
+    } catch (e) {
+      messenger.showSnackBar(
+        SnackBar(content: Text('Something went wrong: $e')),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -48,9 +94,7 @@ class SignupScreen extends StatelessWidget {
               ),
               SizedBox(height: 20),
               ElevatedButton(
-                onPressed: () {
-                  Navigator.pushReplacementNamed(context, '/home');
-                },
+                onPressed: () => _signup(context),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.indigo[900],
                   padding: EdgeInsets.symmetric(horizontal: 40, vertical: 15),
