@@ -1,16 +1,24 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:swoosh/services/user_firestore.dart';
 
 class LoadingScreen extends StatelessWidget {
   const LoadingScreen({super.key});
 
-  // check auth
   Future<void> _checkAuth(BuildContext context) async {
-    // temp wait 2 seconds instead of auth
-    await Future.delayed(const Duration(seconds: 2));
+    // Tiny pause so the spinner shows
+    await Future.delayed(const Duration(seconds: 1));
 
-    // Once future completes, schedule navigation *after* this frame
+    final user = FirebaseAuth.instance.currentUser;
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      Navigator.of(context).pushReplacementNamed('/welcome');
+      if (user != null) {
+        // already logged in → go home
+        Navigator.of(context).pushReplacementNamed('/home');
+      } else {
+        // not logged in → welcome / login flow
+        Navigator.of(context).pushReplacementNamed('/welcome');
+      }
     });
   }
 
