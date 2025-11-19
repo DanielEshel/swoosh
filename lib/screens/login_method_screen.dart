@@ -19,7 +19,7 @@ class LoginMethodScreen extends StatelessWidget {
             ),
             const SizedBox(height: 30),
 
-            // Use your custom WideButton
+            // Use custom WideButton
             WideButton(
               text: "Login with Email",
               color: scheme.primaryContainer,
@@ -32,9 +32,11 @@ class LoginMethodScreen extends StatelessWidget {
             WideIconButton(
               text: "Continue with Google",
               icon: Icons.g_mobiledata, // or Icons.login / Icons.account_circle
-              color: Colors.white,
+              color: Theme.of(context).colorScheme.secondaryContainer,
+              textColor: Theme.of(context).colorScheme.onSecondaryContainer,
+              
               onPressed: () {
-                // TODO: Add your Google sign-in logic here
+                // TODO: Add Google sign-in logic here
               },
             ),
 

@@ -4,6 +4,7 @@ class WideButton extends StatelessWidget {
   final String text;
   final VoidCallback onPressed;
   final Color? color;
+  final Color? textColor;
   final double widthFactor;
   final double height;
   final double radius;
@@ -13,6 +14,7 @@ class WideButton extends StatelessWidget {
     required this.text,
     required this.onPressed,
     this.color,
+    this.textColor,
     this.widthFactor = 0.8,
     this.height = 56,
     this.radius = 16,
@@ -55,6 +57,7 @@ class WideIconButton extends StatelessWidget {
   final IconData icon;
   final VoidCallback onPressed;
   final Color? color;
+  final Color? textColor;
   final double widthFactor;
   final double height;
   final double radius;
@@ -65,6 +68,7 @@ class WideIconButton extends StatelessWidget {
     required this.icon,
     required this.onPressed,
     this.color,
+    this.textColor,
     this.widthFactor = 0.8,
     this.height = 56,
     this.radius = 16,
@@ -81,7 +85,7 @@ class WideIconButton extends StatelessWidget {
         child: ElevatedButton.icon(
           onPressed: onPressed,
           style: ElevatedButton.styleFrom(
-            backgroundColor: color ?? Theme.of(context).colorScheme.primary,
+            backgroundColor: color ?? Theme.of(context).colorScheme.primaryContainer,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(radius),
             ),
@@ -90,7 +94,7 @@ class WideIconButton extends StatelessWidget {
           label: Text(
             text,
             style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                  color: Colors.white,
+                  color: textColor ?? Theme.of(context).colorScheme.onPrimaryContainer,
                 ),
           ),
         ),
