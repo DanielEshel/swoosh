@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:swoosh/services/user_firestore.dart';
+import 'package:swoosh/widgets/custom_buttons.dart';
 
 class LoginScreen extends StatelessWidget {
   final TextEditingController emailController = TextEditingController();
@@ -26,7 +27,7 @@ class LoginScreen extends StatelessWidget {
       if (user != null) {
         // make sure user firestore doc exists
         ensureUserDoc(user);
-        
+
         navigator.pushReplacementNamed('/home');
       }
     } on FirebaseAuthException catch (e) {
@@ -79,13 +80,9 @@ class LoginScreen extends StatelessWidget {
                 ),
               ),
               SizedBox(height: 20),
-              ElevatedButton(
+              WideButton(
                 onPressed: () => _login(context),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.indigo[900],
-                  padding: EdgeInsets.symmetric(horizontal: 40, vertical: 15),
-                ),
-                child: Text("Login"),
+                text: "Login",
               ),
               SizedBox(height: 20),
               TextButton(
