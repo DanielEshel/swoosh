@@ -1,8 +1,38 @@
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:swoosh/widgets/custom_buttons.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:swoosh/services/user_firestore.dart';
 
 class LoginMethodScreen extends StatelessWidget {
   const LoginMethodScreen({super.key});
+
+  Future<void> _googleLogin(BuildContext context) async {
+    final navigator = Navigator.of(context);
+    final messenger = ScaffoldMessenger.of(context);
+
+    try {
+      final cred =
+          await FirebaseAuth.instance.signInWithPopup(GoogleAuthProvider());
+
+      final user = cred.user;
+
+      if (user != null) {
+        // make sure user firestore doc exists
+        ensureUserDoc(user);
+
+        navigator.pushReplacementNamed('/home');
+      }
+    } on FirebaseAuthException catch (e) {
+      messenger.showSnackBar(
+        SnackBar(content: Text(e.message ?? 'Login failed')),
+      );
+    } catch (_) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Something went wrong')),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -34,10 +64,8 @@ class LoginMethodScreen extends StatelessWidget {
               icon: Icons.g_mobiledata, // or Icons.login / Icons.account_circle
               color: Theme.of(context).colorScheme.secondaryContainer,
               textColor: Theme.of(context).colorScheme.onSecondaryContainer,
-              
-              onPressed: () {
-                // TODO: Add Google sign-in logic here
-              },
+
+              onPressed: () => _googleLogin(context),
             ),
 
             const SizedBox(height: 30),
