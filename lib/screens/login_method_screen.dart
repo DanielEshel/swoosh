@@ -1,8 +1,8 @@
-import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:swoosh/widgets/custom_buttons.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:swoosh/services/user_firestore.dart';
+import 'package:google_sign_in/google_sign_in.dart'; // Import this
 
 class LoginMethodScreen extends StatelessWidget {
   const LoginMethodScreen({super.key});
@@ -12,17 +12,33 @@ class LoginMethodScreen extends StatelessWidget {
     final messenger = ScaffoldMessenger.of(context);
 
     try {
-      final cred =
-          await FirebaseAuth.instance.signInWithPopup(GoogleAuthProvider());
+      final GoogleSignInAccount? googleUser = await GoogleSignIn().signIn();
 
-      final user = cred.user;
+    // If the user cancelled the login, stop here
+    if (googleUser == null) return;
 
-      if (user != null) {
-        // make sure user firestore doc exists
-        ensureUserDoc(user);
+    // 2. Obtain the auth details (tokens)
+    final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
 
-        navigator.pushReplacementNamed('/home');
-      }
+    // 3. Create a credential for Firebase
+    final credential = GoogleAuthProvider.credential(
+      accessToken: googleAuth.accessToken,
+      idToken: googleAuth.idToken,
+    );
+
+    // 4. Sign in to Firebase with the credential
+    final UserCredential userCredential = 
+        await FirebaseAuth.instance.signInWithCredential(credential);
+    
+    final user = userCredential.user;
+
+    if (user != null) {
+      // make sure user firestore doc exists
+      ensureUserDoc(user);
+
+      navigator.pushReplacementNamed('/home');
+    }
+    
     } on FirebaseAuthException catch (e) {
       messenger.showSnackBar(
         SnackBar(content: Text(e.message ?? 'Login failed')),
