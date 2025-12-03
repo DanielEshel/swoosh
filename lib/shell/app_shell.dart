@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-
+import 'package:swoosh/pages/home_tab.dart';
 class AppShell extends StatefulWidget {
   const AppShell({super.key});
 
@@ -14,7 +14,7 @@ class _AppShellState extends State<AppShell> {
   // These are the pages shown inside the Scaffold body.
   // They should be simple widgets — NO Scaffold inside them.
   static final List<Widget> _pages = <Widget>[
-    Center(child: Text("Home Page", style: TextStyle(fontSize: 22))),
+    const HomeTab(),
     Center(child: Text("Analytics Page", style: TextStyle(fontSize: 22))),
     Center(child: Text("Inbox Page", style: TextStyle(fontSize: 22))),
     Center(child: Text("Profile Page", style: TextStyle(fontSize: 22))),

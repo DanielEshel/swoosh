@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:swoosh/services/user_firestore.dart';
 
 class LoadingScreen extends StatelessWidget {
   const LoadingScreen({super.key});

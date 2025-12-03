@@ -1,4 +1,4 @@
-package com.example.swoosh
+package com.swoosh.tennistrack
 
 import io.flutter.embedding.android.FlutterActivity
 
