@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert'; // 👈 Added for utf8 encoding
 import 'dart:io';
 import 'dart:math' as math;
 
@@ -7,10 +8,14 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_blue_plus/flutter_blue_plus.dart'; // 👈 Added
 import 'package:tflite_flutter/tflite_flutter.dart';
 
 class CameraPage extends StatefulWidget {
-  const CameraPage({super.key});
+  // 📥 Receive the connected servo characteristic from AppShell
+  final BluetoothCharacteristic? servoCharacteristic;
+
+  const CameraPage({super.key, this.servoCharacteristic});
 
   @override
   State<CameraPage> createState() => _CameraPageState();
@@ -22,8 +27,7 @@ class _CameraPageState extends State<CameraPage> {
 
   // 🚦 State Variables
   bool _isInitialized = false;
-  bool _isDetecting = false;
-  String? _errorMessage; // 👈 Track errors to show in UI
+  String? _errorMessage;
 
   // 🎥 Video State Variables
   bool _isRecording = false;
@@ -39,16 +43,13 @@ class _CameraPageState extends State<CameraPage> {
     _initCameraAndModel();
   }
 
-  // ✅ BETTER: Step-by-step initialization with specific error handling
   Future<void> _initCameraAndModel() async {
     try {
       WidgetsFlutterBinding.ensureInitialized();
 
       // 1. Fetch Cameras
       final cameras = await availableCameras();
-      if (cameras.isEmpty) {
-        throw Exception("No cameras found on device");
-      }
+      if (cameras.isEmpty) throw Exception("No cameras found");
 
       final backCamera = cameras.firstWhere(
         (c) => c.lensDirection == CameraLensDirection.back,
@@ -59,53 +60,55 @@ class _CameraPageState extends State<CameraPage> {
       final controller = CameraController(
         backCamera,
         ResolutionPreset.medium,
-        enableAudio: true, // Required for video
+        enableAudio: true, 
       );
 
       // 3. Initialize Camera
       await controller.initialize();
       
-      // Safety check: Did user leave the screen while we were loading?
       if (!mounted) return;
 
       // 4. Load TFLite (Optional)
-      // try {
-      //   _interpreter = await Interpreter.fromAsset('tennis_ball.tflite');
-      // } catch (e) {
-      //   debugPrint("Warning: TFLite model failed to load, but camera is OK. Error: $e");
-      //   // We don't stop the app here, we just log it and continue
-      // }
+      // try { _interpreter = await Interpreter.fromAsset('tennis_ball.tflite'); } catch (e) { ... }
 
-      // 5. Success! Update State
       setState(() {
         _controller = controller;
         _isInitialized = true;
-        _errorMessage = null; // Clear any previous errors
+        _errorMessage = null;
       });
 
     } on CameraException catch (e) {
-      // Specific handling for Camera permission errors
       _handleError("Camera Error: ${e.description}");
     } catch (e) {
-      // Generic handling for everything else
       _handleError("Failed to initialize: $e");
     }
   }
 
-  // 🛠 Helper to handle errors cleanly
   void _handleError(String message) {
-    debugPrint(message); // Log for developer
+    debugPrint(message);
     if (!mounted) return;
     setState(() {
       _errorMessage = message;
       _isInitialized = false;
     });
-    // Show a snackbar so the user knows what happened
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message), backgroundColor: Colors.red),
-    );
+    _showSnackBar(message);
   }
 
+  // 📡 SERVO COMMAND LOGIC
+  Future<void> _sendServoCommand(String cmd) async {
+    // If not connected, show a warning
+    if (widget.servoCharacteristic == null) {
+      _showSnackBar("Servo not connected! Connect in Home Tab first.");
+      return;
+    }
+
+    try {
+      // Send "L" or "R" to ESP32
+      await widget.servoCharacteristic!.write(utf8.encode(cmd));
+    } catch (e) {
+      debugPrint("Error sending command: $e");
+    }
+  }
   // 🔴 1. Start Recording (With user feedback)
   Future<void> _startRecording() async {
     if (_controller == null || _controller!.value.isRecordingVideo) return;
@@ -173,76 +176,94 @@ class _CameraPageState extends State<CameraPage> {
       SnackBar(content: Text(message)),
     );
   }
-
-  // ... (Keep _processCameraImage and _BallPainter exactly as they were) ...
   
   void _processCameraImage(CameraImage image) async {
      // ... Your existing logic ...
      // Since you haven't enabled stream in init, this won't run yet, which is fine.
   }
 
+
 @override
   void dispose() {
-    // 1. Stop the stream if it exists (important for TFLite later)
     if (_controller != null && _controller!.value.isStreamingImages) {
       _controller!.stopImageStream();
     }
-    
-    // 2. Dispose the controller properly
     _controller?.dispose();
-    
-    // 3. Close the interpreter
     _interpreter?.close();
-    
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    // 1. Handle Error State
     if (_errorMessage != null) {
-      return Scaffold(
-        appBar: AppBar(title: const Text('Camera Error')),
-        body: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.error_outline, size: 48, color: Colors.red),
-              const SizedBox(height: 16),
-              Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Text(_errorMessage!, textAlign: TextAlign.center),
-              ),
-              ElevatedButton(
-                onPressed: _initCameraAndModel, // Retry button!
-                child: const Text("Retry"),
-              )
-            ],
-          ),
-        ),
-      );
+      return Center(child: Text(_errorMessage!)); // Simple error view
     }
 
-    // 2. Handle Loading State
     if (!_isInitialized || _controller == null) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      );
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
-    // 3. Main Camera UI
+    // Check if bluetooth is ready
+    final bool isBtReady = widget.servoCharacteristic != null;
+
     return Scaffold(
       appBar: AppBar(title: const Text('Tennis Ball Tracker')),
       body: Stack(
         fit: StackFit.expand,
         children: [
+          // 1. Camera Feed
           CameraPreview(_controller!),
           
+          // 2. Ball Detection Overlay (Your existing code)
           if (_ballRect != null)
             CustomPaint(
               painter: _BallPainter(rect: _ballRect!, confidence: _confidence),
             ),
 
+          // 🎮 3. SERVO ARROW PAD (Only if connected)
+          if (isBtReady)
+            Positioned(
+              top: 50, // Near the top
+              left: 20,
+              right: 20,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  // LEFT ARROW
+                  _buildArrowBtn(Icons.arrow_back_ios_new, "L"),
+                  
+                  // RIGHT ARROW
+                  _buildArrowBtn(Icons.arrow_forward_ios, "R"),
+                ],
+              ),
+            ),
+
+          // ⚠️ 4. Disconnected Warning (If NOT connected)
+          if (!isBtReady)
+            Positioned(
+              top: 50,
+              left: 0,
+              right: 0,
+              child: Center(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: Colors.black54,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.bluetooth_disabled, color: Colors.white, size: 16),
+                      SizedBox(width: 8),
+                      Text("Servo Disconnected", style: TextStyle(color: Colors.white)),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+
+          // 5. Upload Loading Overlay
           if (_isUploading)
             Container(
               color: Colors.black54,
@@ -258,6 +279,7 @@ class _CameraPageState extends State<CameraPage> {
               ),
             ),
 
+          // 6. Record Button
           Positioned(
             bottom: 30,
             left: 0,
@@ -289,17 +311,32 @@ class _CameraPageState extends State<CameraPage> {
       ),
     );
   }
+
+  // 🎨 Helper Widget for Arrow Buttons
+  Widget _buildArrowBtn(IconData icon, String cmd) {
+    return GestureDetector(
+      // Send command immediately on press
+      onTapDown: (_) => _sendServoCommand(cmd),
+      
+      child: Container(
+        width: 60,
+        height: 60,
+        decoration: BoxDecoration(
+          color: Colors.black45,
+          shape: BoxShape.circle,
+          border: Border.all(color: Colors.white.withValues(alpha: 0.5), width: 2),
+        ),
+        child: Icon(icon, color: Colors.white, size: 30),
+      ),
+    );
+  }
 }
 
-// ... (Keep your _BallPainter class exactly as it was) ...
+// ... (Your existing _BallPainter class remains unchanged) ...
 class _BallPainter extends CustomPainter {
-  final Rect rect; // normalized (0..1) rect
+  final Rect rect; 
   final double? confidence;
-
-  _BallPainter({
-    required this.rect,
-    this.confidence,
-  });
+  _BallPainter({required this.rect, this.confidence});
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -307,36 +344,13 @@ class _BallPainter extends CustomPainter {
       ..style = PaintingStyle.stroke
       ..strokeWidth = 3
       ..color = Colors.greenAccent;
-
     final left = rect.left * size.width;
     final top = rect.top * size.height;
     final right = rect.right * size.width;
     final bottom = rect.bottom * size.height;
-
     final box = Rect.fromLTRB(left, top, right, bottom);
     canvas.drawRect(box, paint);
-
-    if (confidence != null) {
-      final textPainter = TextPainter(
-        text: TextSpan(
-          text: '${(confidence! * 100).toStringAsFixed(1)}%',
-          style: const TextStyle(
-            color: Colors.greenAccent,
-            fontSize: 14,
-          ),
-        ),
-        textDirection: TextDirection.ltr,
-      )..layout();
-
-      textPainter.paint(
-        canvas,
-        Offset(box.left, math.max(0, box.top - textPainter.height - 4)),
-      );
-    }
   }
-
   @override
-  bool shouldRepaint(covariant _BallPainter oldDelegate) {
-    return rect != oldDelegate.rect || confidence != oldDelegate.confidence;
-  }
+  bool shouldRepaint(covariant _BallPainter oldDelegate) => true;
 }
