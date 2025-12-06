@@ -10,11 +10,18 @@ import 'screens/login_screen.dart';
 import 'shell/app_shell.dart';
 import 'theme.dart';
 import 'screens/signup_screen.dart';
+import 'package:firebase_app_check/firebase_app_check.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
+  );
+  // 👇 ADD THIS BLOCK
+  await FirebaseAppCheck.instance.activate(
+    // You can set this to 'true' for local testing
+    androidProvider: AndroidProvider.debug, 
+    appleProvider: AppleProvider.debug,
   );
   runApp(SwooshApp());
 }
