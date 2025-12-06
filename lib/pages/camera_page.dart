@@ -51,7 +51,7 @@ class _CameraPageState extends State<CameraPage> {
 
       // 2. Load TFLite model
       // Place your model in assets and pubspec.yaml (e.g., assets/tennis_ball.tflite)
-      _interpreter = await Interpreter.fromAsset('tennis_ball.tflite');
+      // _interpreter = await Interpreter.fromAsset('tennis_ball.tflite');
 
       // 3. Start image stream
       await _controller!.startImageStream(_processCameraImage);
