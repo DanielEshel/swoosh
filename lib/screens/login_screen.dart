@@ -3,11 +3,24 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:swoosh/services/user_firestore.dart';
 import 'package:swoosh/widgets/custom_buttons.dart';
 
-class LoginScreen extends StatelessWidget {
+class LoginScreen extends StatefulWidget {
+  const LoginScreen({super.key});
+
+  @override
+  State<LoginScreen> createState() => _LoginScreenState();
+}
+
+class _LoginScreenState extends State<LoginScreen> {
+  // Controllers now belong to State, not widget → CORRECT
   final TextEditingController emailController = TextEditingController();
   final TextEditingController passwordController = TextEditingController();
 
-  LoginScreen({super.key});
+  @override
+  void dispose() {
+    emailController.dispose();
+    passwordController.dispose();
+    super.dispose();
+  }
 
   Future<void> _login(BuildContext context) async {
     final email = emailController.text.trim();
@@ -25,9 +38,7 @@ class LoginScreen extends StatelessWidget {
       final user = cred.user;
 
       if (user != null) {
-        // make sure user firestore doc exists
         ensureUserDoc(user);
-
         navigator.pushReplacementNamed('/home');
       }
     } on FirebaseAuthException catch (e) {
@@ -50,44 +61,55 @@ class LoginScreen extends StatelessWidget {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Text(
+              const Text(
                 "Sign-in to your Account",
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),
-              SizedBox(height: 20),
+              const SizedBox(height: 20),
+
               TextField(
                 controller: emailController,
-                decoration: InputDecoration(
+                decoration: const InputDecoration(
                   labelText: "Email",
                   border: OutlineInputBorder(),
                 ),
               ),
-              SizedBox(height: 15),
+
+              const SizedBox(height: 15),
+
               TextField(
                 controller: passwordController,
                 obscureText: true,
-                decoration: InputDecoration(
+                decoration: const InputDecoration(
                   labelText: "Password",
                   border: OutlineInputBorder(),
                 ),
               ),
-              SizedBox(height: 10),
+
+              const SizedBox(height: 10),
+
               Align(
                 alignment: Alignment.centerRight,
                 child: TextButton(
-                  onPressed: () {}, // Add reset password logic
-                  child: Text("Forgot password?"),
+                  onPressed: () {
+                    // TODO: Add forgot-password
+                  },
+                  child: const Text("Forgot password?"),
                 ),
               ),
-              SizedBox(height: 20),
+
+              const SizedBox(height: 20),
+
               WideButton(
                 onPressed: () => _login(context),
                 text: "Login",
               ),
-              SizedBox(height: 20),
+
+              const SizedBox(height: 20),
+
               TextButton(
                 onPressed: () => Navigator.pushNamed(context, '/signup'),
-                child: Text("New to SWOOSH? Sign up"),
+                child: const Text("New to SWOOSH? Sign up"),
               )
             ],
           ),

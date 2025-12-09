@@ -1,11 +1,13 @@
 import 'dart:async';
 import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:flutter_reactive_ble/flutter_reactive_ble.dart';
+
 import 'package:swoosh/pages/home_tab.dart';
-import 'package:swoosh/pages/camera_page.dart'; // Ensure this matches your filename
+import 'package:swoosh/pages/camera_page.dart';
 
 class AppShell extends StatefulWidget {
   const AppShell({super.key});
@@ -17,18 +19,28 @@ class AppShell extends StatefulWidget {
 class _AppShellState extends State<AppShell> {
   int _selectedIndex = 0;
 
-  // 🔵 Shared Bluetooth State
-  BluetoothDevice? _connectedDevice;
-  BluetoothCharacteristic? _servoCharacteristic;
+  // BLE client
+  final FlutterReactiveBle _ble = FlutterReactiveBle();
+
+  // BLE state
   String _btStatus = "Disconnected";
   bool _isScanning = false;
+  bool _isConnected = false;
+  String? _deviceId;
 
-  final String targetDeviceName = "ESP32_Swoosh"; // Match your ESP32 code
+  // BLE UUIDs (must match ESP32 NimBLE code)
+  final Uuid _serviceUuid = Uuid.parse("12345678-1234-1234-1234-1234567890ab");
+  final Uuid _charUuid = Uuid.parse("12345678-1234-1234-1234-1234567890ac");
 
-  // 📡 Scan & Connect Logic (Called from HomeTab)
+  StreamSubscription<DiscoveredDevice>? _scanSub;
+  StreamSubscription<ConnectionStateUpdate>? _connSub;
+
+  // ----------------------------------------------------------
+  // Scan & connect to SwooshESP32
+  // ----------------------------------------------------------
   Future<void> scanAndConnect() async {
-    // 1. Permissions
-    if (Platform.isAndroid || Platform.isIOS) {
+    // Android runtime permissions
+    if (Platform.isAndroid) {
       await [
         Permission.bluetoothScan,
         Permission.bluetoothConnect,
@@ -41,89 +53,132 @@ class _AppShellState extends State<AppShell> {
       _isScanning = true;
     });
 
-    try {
-      // 2. Start Scan
-      await FlutterBluePlus.startScan(timeout: const Duration(seconds: 5));
+    _scanSub = _ble.scanForDevices(
+      withServices: [_serviceUuid],
+      scanMode: ScanMode.lowLatency,
+    ).listen((device) async {
+      // Debug
+      // print("Found: ${device.name} (${device.id})");
 
-      FlutterBluePlus.scanResults.listen((results) async {
-        for (ScanResult r in results) {
-          if (r.device.platformName == targetDeviceName) {
-            await FlutterBluePlus.stopScan();
-            await _connectToDevice(r.device);
-            break;
-          }
-        }
-      });
-    } catch (e) {
+      if (device.name == "SwooshESP32") {
+        // Stop scanning once we find the ESP
+        await _scanSub?.cancel();
+        setState(() => _isScanning = false);
+
+        await _connectToDevice(device.id);
+      }
+    }, onError: (e) {
       setState(() {
         _btStatus = "Scan Error: $e";
         _isScanning = false;
       });
-    }
-  }
-
-  Future<void> _connectToDevice(BluetoothDevice device) async {
-    try {
-      await device.connect();
-
-      // Find the Write Characteristic
-      List<BluetoothService> services = await device.discoverServices();
-      for (var service in services) {
-        for (var characteristic in service.characteristics) {
-          if (characteristic.properties.write) {
-            setState(() {
-              _servoCharacteristic = characteristic;
-            });
-          }
-        }
-      }
-
-      setState(() {
-        _connectedDevice = device;
-        _btStatus = "Connected to ${device.platformName}";
-        _isScanning = false;
-      });
-    } catch (e) {
-      setState(() {
-        _btStatus = "Connection Failed";
-        _isScanning = false;
-      });
-    }
-  }
-
-  void _disconnect() {
-    _connectedDevice?.disconnect();
-    setState(() {
-      _connectedDevice = null;
-      _servoCharacteristic = null;
-      _btStatus = "Disconnected";
     });
   }
 
+  // ----------------------------------------------------------
+  // Connect to device by id
+  // ----------------------------------------------------------
+  Future<void> _connectToDevice(String deviceId) async {
+    setState(() => _btStatus = "Connecting...");
+
+    _deviceId = deviceId;
+
+    // connectToDevice returns a stream; cancelling it triggers disconnect
+    _connSub = _ble
+        .connectToDevice(
+      id: deviceId,
+      connectionTimeout: const Duration(seconds: 6),
+    )
+        .listen((update) {
+      // print("BLE state: ${update.connectionState}");
+
+      if (update.connectionState == DeviceConnectionState.connected) {
+        setState(() {
+          _isConnected = true;
+          _btStatus = "Connected";
+        });
+      } else if (update.connectionState == DeviceConnectionState.disconnected) {
+        setState(() {
+          _isConnected = false;
+          _btStatus = "Disconnected";
+          _deviceId = null;
+        });
+      }
+    }, onError: (e) {
+      setState(() {
+        _btStatus = "Connection Failed";
+        _isConnected = false;
+      });
+    });
+  }
+
+  // ----------------------------------------------------------
+  // Send servo command: "0", "1", "2", ...
+  // ----------------------------------------------------------
+  Future<void> sendServoCommand(String cmd) async {
+    if (_deviceId == null) return;
+
+    final characteristic = QualifiedCharacteristic(
+      deviceId: _deviceId!,
+      serviceId: _serviceUuid,
+      characteristicId: _charUuid,
+    );
+
+    try {
+      await _ble.writeCharacteristicWithResponse(
+        characteristic,
+        value: cmd.codeUnits,
+      );
+      // print("Sent command: $cmd");
+    } catch (e) {
+      // print("Write error: $e");
+    }
+  }
+
+  // ----------------------------------------------------------
+  // Disconnect (by cancelling connection stream)
+  // ----------------------------------------------------------
+  void _disconnect() {
+    _connSub?.cancel();
+    _connSub = null;
+
+    setState(() {
+      _isConnected = false;
+      _btStatus = "Disconnected";
+      _deviceId = null;
+    });
+  }
+
+  // ----------------------------------------------------------
+  // UI
+  // ----------------------------------------------------------
   @override
   Widget build(BuildContext context) {
-    // We create the pages dynamically to pass the updated state down
     final List<Widget> pages = [
-      // 1. HOME TAB (Controls the connection)
+      // 1. HOME TAB (controls BLE connection)
       HomeTab(
         btStatus: _btStatus,
         isScanning: _isScanning,
-        isConnected: _connectedDevice != null,
+        isConnected: _isConnected,
         onConnect: scanAndConnect,
         onDisconnect: _disconnect,
       ),
 
-      // 2. CAMERA TAB (Uses the connection)
+      // 2. CAMERA TAB (sends servo commands over BLE)
       CameraPage(
-        servoCharacteristic: _servoCharacteristic,
+        onSendCommand: sendServoCommand,
+        isConnected: _isConnected, // <— ADD THIS
       ),
 
       // 3. Analytics
       const Center(
-          child: Text("Analytics Page", style: TextStyle(fontSize: 22))),
+        child: Text("Analytics Page", style: TextStyle(fontSize: 22)),
+      ),
 
       // 4. Profile
-      const Center(child: Text("Profile Page", style: TextStyle(fontSize: 22))),
+      const Center(
+        child: Text("Profile Page", style: TextStyle(fontSize: 22)),
+      ),
     ];
 
     return Scaffold(
@@ -134,10 +189,13 @@ class _AppShellState extends State<AppShell> {
           IconButton(
             icon: const Icon(Icons.logout),
             onPressed: () async {
-              _connectedDevice?.disconnect(); // Safety disconnect
+              _disconnect(); // drop BLE connection
               final navigator = Navigator.of(context);
               await FirebaseAuth.instance.signOut();
-              navigator.pushNamedAndRemoveUntil('/welcome', (route) => false);
+              navigator.pushNamedAndRemoveUntil(
+                '/welcome',
+                (route) => false,
+              );
             },
           ),
         ],
@@ -148,16 +206,22 @@ class _AppShellState extends State<AppShell> {
         onTap: (index) => setState(() => _selectedIndex = index),
         selectedItemColor: Colors.blueAccent,
         unselectedItemColor: Colors.grey,
-        type: BottomNavigationBarType.fixed, // Needed for 4+ items usually
+        type: BottomNavigationBarType.fixed,
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.home), label: "Home"),
-          BottomNavigationBarItem(
-              icon: Icon(Icons.videocam), label: "Camera"), // Replaced Inbox
+          BottomNavigationBarItem(icon: Icon(Icons.videocam), label: "Camera"),
           BottomNavigationBarItem(
               icon: Icon(Icons.analytics), label: "Analysis"),
           BottomNavigationBarItem(icon: Icon(Icons.person), label: "Profile"),
         ],
       ),
     );
+  }
+
+  @override
+  void dispose() {
+    _scanSub?.cancel();
+    _connSub?.cancel();
+    super.dispose();
   }
 }

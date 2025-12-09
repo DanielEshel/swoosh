@@ -28,7 +28,6 @@ class HomeTab extends StatelessWidget {
           ),
           const SizedBox(height: 40),
 
-          // 📡 Connectivity Status Card
           Card(
             margin: const EdgeInsets.symmetric(horizontal: 24),
             elevation: 4,
@@ -37,11 +36,15 @@ class HomeTab extends StatelessWidget {
               child: Column(
                 children: [
                   Icon(
-                    isConnected ? Icons.bluetooth_connected : Icons.bluetooth_disabled,
+                    isConnected
+                        ? Icons.bluetooth_connected
+                        : Icons.bluetooth_disabled,
                     size: 50,
                     color: isConnected ? Colors.blue : Colors.grey,
                   ),
+
                   const SizedBox(height: 16),
+
                   Text(
                     btStatus,
                     style: TextStyle(
@@ -51,28 +54,37 @@ class HomeTab extends StatelessWidget {
                     ),
                     textAlign: TextAlign.center,
                   ),
+
                   const SizedBox(height: 20),
-                  
+
                   if (isScanning)
                     const CircularProgressIndicator()
                   else
                     ElevatedButton.icon(
                       onPressed: isConnected ? onDisconnect : onConnect,
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: isConnected ? Colors.redAccent : Colors.blueAccent,
+                        backgroundColor:
+                            isConnected ? Colors.redAccent : Colors.blueAccent,
                         foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 24, vertical: 12),
                       ),
                       icon: Icon(isConnected ? Icons.close : Icons.search),
-                      label: Text(isConnected ? "Disconnect Device" : "Find ESP32 & Connect"),
+                      label: Text(isConnected
+                          ? "Disconnect from ESP32"
+                          : "Scan & Connect to ESP32"),
                     ),
                 ],
               ),
             ),
           ),
-          
+
           const SizedBox(height: 20),
-          const Text("Connect here to enable\nServo controls in the Camera tab.", textAlign: TextAlign.center, style: TextStyle(color: Colors.grey),),
+          const Text(
+            "Connect here to enable\nServo controls in the Camera tab.",
+            textAlign: TextAlign.center,
+            style: TextStyle(color: Colors.grey),
+          ),
         ],
       ),
     );
