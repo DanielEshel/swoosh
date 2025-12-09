@@ -11,19 +11,28 @@ import 'shell/app_shell.dart';
 import 'theme.dart';
 import 'screens/signup_screen.dart';
 import 'package:firebase_app_check/firebase_app_check.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
+
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // 🔥 Firebase initialization works on all platforms
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
-  // 👇 ADD THIS BLOCK
-  await FirebaseAppCheck.instance.activate(
-    // You can set this to 'true' for local testing
-    androidProvider: AndroidProvider.debug, 
-    appleProvider: AppleProvider.debug,
-  );
-  runApp(SwooshApp());
+
+  // 🔐 Firebase App Check must NOT run on Web or Desktop.
+  // Web: uses reCAPTCHA instead (auto handled by Firebase)
+  // Desktop: not supported.
+  if (!kIsWeb) {
+    await FirebaseAppCheck.instance.activate(
+      androidProvider: AndroidProvider.debug,
+      appleProvider: AppleProvider.debug,
+    );
+  }
+
+  runApp(const SwooshApp());
 }
 
 class SwooshApp extends StatelessWidget {
@@ -37,12 +46,12 @@ class SwooshApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       initialRoute: '/loading',
       routes: {
-        '/loading': (context) => LoadingScreen(),
-        '/welcome': (context) => WelcomeScreen(),
-        '/login-method': (context) => LoginMethodScreen(),
-        '/login': (context) => LoginScreen(),
-        '/signup': (context) => SignupScreen(),
-        '/home': (context) => AppShell(),
+        '/loading': (context) => const LoadingScreen(),
+        '/welcome': (context) => const WelcomeScreen(),
+        '/login-method': (context) => const LoginMethodScreen(),
+        '/login': (context) => const LoginScreen(),
+        '/signup': (context) => const SignupScreen(),
+        '/home': (context) => const AppShell(),
       },
     );
   }
