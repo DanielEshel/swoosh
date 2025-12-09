@@ -272,7 +272,9 @@ class _CameraPageState extends State<CameraPage> {
 
   Widget _buildArrowBtn(IconData icon, String cmd) {
     return GestureDetector(
-      onTapDown: (_) => _sendServoCommand(cmd),
+      onTapDown: (_) => _sendServoCommand(cmd), // start moving
+      onTapUp: (_) => _sendServoCommand("S"), // stop when released
+      onTapCancel: () => _sendServoCommand("S"), // stop if finger slides away
       child: Container(
         width: 60,
         height: 60,
