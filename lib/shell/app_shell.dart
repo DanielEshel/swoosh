@@ -6,8 +6,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:flutter_reactive_ble/flutter_reactive_ble.dart';
 
-import 'package:swoosh/pages/home_tab.dart';
-import 'package:swoosh/pages/camera_page.dart';
+import 'package:swoosh/pages/pages.dart';
 
 class AppShell extends StatefulWidget {
   const AppShell({super.key});
@@ -176,9 +175,7 @@ class _AppShellState extends State<AppShell> {
       ),
 
       // 4. Profile
-      const Center(
-        child: Text("Profile Page", style: TextStyle(fontSize: 22)),
-      ),
+      const ProfilePage(), // 
     ];
 
     return Scaffold(
