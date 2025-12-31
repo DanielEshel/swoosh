@@ -1,12 +1,27 @@
 import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
 import 'dart:math' as math;
-
 import 'package:camera/camera.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_database/firebase_database.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
-import 'package:tflite_flutter/tflite_flutter.dart';
+import 'package:swoosh/ml_stub.dart'
+    if (dart.library.ffi) 'package:swoosh/ml_native.dart';
 
 class CameraPage extends StatefulWidget {
-  const CameraPage({super.key});
+  // NEW: BLE callback instead of servoCharacteristic
+  final Future<void> Function(String) onSendCommand;
+
+  // NEW: whether BLE is connected (from AppShell)
+  final bool isConnected;
+
+  const CameraPage({
+    super.key,
+    required this.onSendCommand,
+    required this.isConnected,
+  });
 
   @override
   State<CameraPage> createState() => _CameraPageState();
@@ -14,12 +29,15 @@ class CameraPage extends StatefulWidget {
 
 class _CameraPageState extends State<CameraPage> {
   CameraController? _controller;
-  Interpreter? _interpreter;
+  // no tflite for now
+  late final TFLiteManager _ml = TFLiteManager();
 
   bool _isInitialized = false;
-  bool _isDetecting = false;
+  String? _errorMessage;
 
-  // Last detected ball position (normalized 0..1 in preview coordinates)
+  bool _isRecording = false;
+  bool _isUploading = false;
+
   Rect? _ballRect;
   double? _confidence;
 
@@ -31,182 +49,242 @@ class _CameraPageState extends State<CameraPage> {
 
   Future<void> _initCameraAndModel() async {
     try {
-      // Ensure binding
-      WidgetsFlutterBinding.ensureInitialized();
-
-      // 1. Init cameras
       final cameras = await availableCameras();
-      final backCamera = cameras.firstWhere(
-        (c) => c.lensDirection == CameraLensDirection.back,
-        orElse: () => cameras.first,
-      );
+      if (cameras.isEmpty) throw Exception("No cameras available");
 
-      _controller = CameraController(
-        backCamera,
+      final camera = cameras.first;
+
+      final ctrl = CameraController(
+        camera,
         ResolutionPreset.medium,
-        enableAudio: false,
+        enableAudio: true,
       );
 
-      await _controller!.initialize();
+      await ctrl.initialize();
 
-      // 2. Load TFLite model
-      // Place your model in assets and pubspec.yaml (e.g., assets/tennis_ball.tflite)
-      // _interpreter = await Interpreter.fromAsset('tennis_ball.tflite');
+      // Load ML only if available (Android/iOS)
+      // no tflite for now
+      // await _ml.loadModel();
 
-      // 3. Start image stream
-      await _controller!.startImageStream(_processCameraImage);
+      if (!mounted) return;
 
       setState(() {
+        _controller = ctrl;
         _isInitialized = true;
+        _errorMessage = null;
       });
     } catch (e) {
-      debugPrint('Error initializing camera/model: $e');
+      _handleError("Camera init failed: $e");
     }
   }
 
-  void _processCameraImage(CameraImage image) async {
-    if (_isDetecting || _interpreter == null || !_isInitialized) return;
-    _isDetecting = true;
+  void _handleError(String msg) {
+    if (!mounted) return;
+    setState(() {
+      _isInitialized = false;
+      _errorMessage = msg;
+    });
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+  }
+
+  // ============================================================
+  // BLE SERVO COMMAND
+  // ============================================================
+  Future<void> _sendServoCommand(String cmd) async {
+    if (!widget.isConnected) {
+      _showSnackBar("Not connected! Connect in Home tab.");
+      return;
+    }
+    try {
+      await widget.onSendCommand(cmd);
+    } catch (e) {
+      _showSnackBar("Failed sending command: $e");
+    }
+  }
+
+  // ============================================================
+  // VIDEO RECORDING + UPLOAD
+  // ============================================================
+  Future<void> _startRecording() async {
+    if (_controller == null) return;
+    try {
+      await _controller!.startVideoRecording();
+      setState(() => _isRecording = true);
+    } catch (e) {
+      _showSnackBar("Error starting recording: $e");
+    }
+  }
+
+  Future<void> _stopRecording() async {
+    if (_controller == null) return;
+    try {
+      final XFile file = await _controller!.stopVideoRecording();
+      setState(() => _isRecording = false);
+      _uploadVideo(File(file.path));
+    } catch (e) {
+      _showSnackBar("Error stopping recording: $e");
+    }
+  }
+
+  Future<void> _uploadVideo(File file) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      _showSnackBar("Login required to upload");
+      return;
+    }
+
+    setState(() => _isUploading = true);
 
     try {
-      // TODO: convert CameraImage (YUV420) → input tensor format
-      // (e.g., 224x224 RGB float32 or uint8 depending on your model)
+      final fileName = "${DateTime.now().millisecondsSinceEpoch}.mp4";
+      final ref = FirebaseStorage.instance.ref("videos/${user.uid}/$fileName");
 
-      // Example placeholder input (you MUST replace with real preprocessing):
-      final inputShape = _interpreter!.getInputTensor(0).shape;
-      final height = inputShape[1];
-      final width = inputShape[2];
+      await ref.putFile(file);
+      final url = await ref.getDownloadURL();
 
-      // This is just a dummy zero-filled tensor as a placeholder:
-      final input = List.generate(
-        height,
-        (_) => List.generate(
-          width,
-          (_) => List.filled(3, 0.0),
-        ),
-      );
+      await FirebaseDatabase.instance.ref("videos/${user.uid}").push().set({
+        "videoUrl": url,
+        "timestamp": ServerValue.timestamp,
+        "title": fileName,
+      });
 
-      // Example output: [x_center, y_center, width, height, confidence]
-      final output = List.filled(1, List.filled(5, 0.0));
-
-      _interpreter!.run(input, output);
-
-      final result = output[0];
-      final xCenter = result[0]; // 0..1
-      final yCenter = result[1]; // 0..1
-      final w = result[2];       // 0..1
-      final h = result[3];       // 0..1
-      final conf = result[4];    // 0..1
-
-      if (conf > 0.3) {
-        final left = (xCenter - w / 2).clamp(0.0, 1.0);
-        final top = (yCenter - h / 2).clamp(0.0, 1.0);
-        final right = (xCenter + w / 2).clamp(0.0, 1.0);
-        final bottom = (yCenter + h / 2).clamp(0.0, 1.0);
-
-        setState(() {
-          _ballRect = Rect.fromLTRB(left, top, right, bottom);
-          _confidence = conf;
-        });
-      } else {
-        setState(() {
-          _ballRect = null;
-          _confidence = null;
-        });
-      }
+      _showSnackBar("Upload successful!");
     } catch (e) {
-      debugPrint('Error during inference: $e');
+      _showSnackBar("Upload failed: $e");
     } finally {
-      _isDetecting = false;
+      setState(() => _isUploading = false);
     }
+  }
+
+  void _showSnackBar(String msg) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
   }
 
   @override
   void dispose() {
     _controller?.dispose();
-    _interpreter?.close();
+    _ml.close();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    if (_errorMessage != null) {
+      return Scaffold(body: Center(child: Text(_errorMessage!)));
+    }
+
+    if (!_isInitialized) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+
+    final isBtReady = widget.isConnected;
+
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Tennis Ball Tracker'),
+      appBar: AppBar(title: const Text("Tennis Tracker")),
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          CameraPreview(_controller!),
+
+          // 🎮 Only show servo controls if BLE is connected
+          if (isBtReady)
+            Positioned(
+              top: 40,
+              left: 30,
+              right: 30,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  _buildArrowBtn(Icons.arrow_back_ios_new, "0"), // left
+                  _buildArrowBtn(Icons.arrow_forward_ios, "1"), // right
+                ],
+              ),
+            ),
+
+          // ⚠️ If NOT connected, show warning
+          if (!isBtReady)
+            Positioned(
+              top: 40,
+              left: 0,
+              right: 0,
+              child: Center(
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: Colors.black54,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.bluetooth_disabled,
+                          color: Colors.white, size: 16),
+                      SizedBox(width: 8),
+                      Text("Connect in Home Tab",
+                          style: TextStyle(color: Colors.white)),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+
+          // Upload overlay
+          if (_isUploading)
+            Container(
+              color: Colors.black45,
+              child: const Center(
+                child: CircularProgressIndicator(color: Colors.white),
+              ),
+            ),
+
+          // REC button
+          Positioned(
+            bottom: 30,
+            left: 0,
+            right: 0,
+            child: Center(
+              child: GestureDetector(
+                onTap: _isRecording ? _stopRecording : _startRecording,
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 300),
+                  height: 80,
+                  width: 80,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.white, width: 4),
+                    color: _isRecording ? Colors.red : Colors.transparent,
+                  ),
+                  child: Icon(
+                    _isRecording ? Icons.stop : Icons.videocam,
+                    color: Colors.white,
+                    size: 40,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
-      body: _isInitialized && _controller != null
-          ? LayoutBuilder(
-              builder: (context, constraints) {
-                return Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    CameraPreview(_controller!),
-                    // Overlay bounding box
-                    if (_ballRect != null)
-                      CustomPaint(
-                        painter: _BallPainter(
-                          rect: _ballRect!,
-                          confidence: _confidence,
-                        ),
-                        size: Size(
-                          constraints.maxWidth,
-                          constraints.maxHeight,
-                        ),
-                      ),
-                  ],
-                );
-              },
-            )
-          : const Center(child: CircularProgressIndicator()),
     );
   }
-}
 
-class _BallPainter extends CustomPainter {
-  final Rect rect; // normalized (0..1) rect
-  final double? confidence;
-
-  _BallPainter({
-    required this.rect,
-    this.confidence,
-  });
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 3
-      ..color = Colors.greenAccent;
-
-    final left = rect.left * size.width;
-    final top = rect.top * size.height;
-    final right = rect.right * size.width;
-    final bottom = rect.bottom * size.height;
-
-    final box = Rect.fromLTRB(left, top, right, bottom);
-    canvas.drawRect(box, paint);
-
-    if (confidence != null) {
-      final textPainter = TextPainter(
-        text: TextSpan(
-          text: '${(confidence! * 100).toStringAsFixed(1)}%',
-          style: const TextStyle(
-            color: Colors.greenAccent,
-            fontSize: 14,
-          ),
+  Widget _buildArrowBtn(IconData icon, String cmd) {
+    return GestureDetector(
+      onTapDown: (_) => _sendServoCommand(cmd), // start moving
+      onTapUp: (_) => _sendServoCommand("S"), // stop when released
+      onTapCancel: () => _sendServoCommand("S"), // stop if finger slides away
+      child: Container(
+        width: 60,
+        height: 60,
+        decoration: BoxDecoration(
+          color: Colors.black45,
+          shape: BoxShape.circle,
+          border: Border.all(color: Colors.white, width: 2),
         ),
-        textDirection: TextDirection.ltr,
-      )..layout();
-
-      textPainter.paint(
-        canvas,
-        Offset(box.left, math.max(0, box.top - textPainter.height - 4)),
-      );
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant _BallPainter oldDelegate) {
-    return rect != oldDelegate.rect || confidence != oldDelegate.confidence;
+        child: Icon(icon, color: Colors.white, size: 28),
+      ),
+    );
   }
 }

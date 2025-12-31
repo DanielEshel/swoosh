@@ -2,19 +2,31 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:swoosh/services/user_firestore.dart';
 
-class SignupScreen extends StatelessWidget {
+class SignupScreen extends StatefulWidget {
+  const SignupScreen({super.key});
+
+  @override
+  State<SignupScreen> createState() => _SignupScreenState();
+}
+
+class _SignupScreenState extends State<SignupScreen> {
   final TextEditingController emailController = TextEditingController();
   final TextEditingController passwordController = TextEditingController();
   final TextEditingController confirmController = TextEditingController();
 
-  SignupScreen({super.key});
+  @override
+  void dispose() {
+    emailController.dispose();
+    passwordController.dispose();
+    confirmController.dispose();
+    super.dispose();
+  }
 
   Future<void> _signup(BuildContext context) async {
     final email = emailController.text.trim();
     final password = passwordController.text.trim();
     final confirm = confirmController.text.trim();
 
-    // capture these BEFORE any `await`
     final messenger = ScaffoldMessenger.of(context);
     final navigator = Navigator.of(context);
 
@@ -33,12 +45,7 @@ class SignupScreen extends StatelessWidget {
 
       if (user != null) {
         ensureUserDoc(user);
-        // use navigator captured earlier (safe, no context here)
         navigator.pushReplacementNamed('/home');
-      }
-
-      else{
-        
       }
 
     } on FirebaseAuthException catch (e) {
@@ -61,49 +68,50 @@ class SignupScreen extends StatelessWidget {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Text(
+              const Text(
                 "Create an Account",
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),
-              SizedBox(height: 20),
+              const SizedBox(height: 20),
               TextField(
                 controller: emailController,
-                decoration: InputDecoration(
+                decoration: const InputDecoration(
                   labelText: "Email",
                   border: OutlineInputBorder(),
                 ),
               ),
-              SizedBox(height: 15),
+              const SizedBox(height: 15),
               TextField(
                 controller: passwordController,
                 obscureText: true,
-                decoration: InputDecoration(
+                decoration: const InputDecoration(
                   labelText: "Password",
                   border: OutlineInputBorder(),
                 ),
               ),
-              SizedBox(height: 15),
+              const SizedBox(height: 15),
               TextField(
                 controller: confirmController,
                 obscureText: true,
-                decoration: InputDecoration(
+                decoration: const InputDecoration(
                   labelText: "Confirm Password",
                   border: OutlineInputBorder(),
                 ),
               ),
-              SizedBox(height: 20),
+              const SizedBox(height: 20),
               ElevatedButton(
                 onPressed: () => _signup(context),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.indigo[900],
-                  padding: EdgeInsets.symmetric(horizontal: 40, vertical: 15),
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 40, vertical: 15),
                 ),
-                child: Text("Continue"),
+                child: const Text("Continue"),
               ),
-              SizedBox(height: 20),
+              const SizedBox(height: 20),
               TextButton(
                 onPressed: () => Navigator.pushNamed(context, '/login'),
-                child: Text("Already have an account? Login"),
+                child: const Text("Already have an account? Login"),
               )
             ],
           ),
