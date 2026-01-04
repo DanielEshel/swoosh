@@ -1,9 +1,12 @@
+// lib/pages/home_tab.dart
+
 import 'package:flutter/material.dart';
 
 class HomeTab extends StatelessWidget {
   final String btStatus;
   final bool isScanning;
   final bool isConnected;
+  final String sensorDistance; // Receive data
   final VoidCallback onConnect;
   final VoidCallback onDisconnect;
 
@@ -12,6 +15,7 @@ class HomeTab extends StatelessWidget {
     required this.btStatus,
     required this.isScanning,
     required this.isConnected,
+    required this.sensorDistance,
     required this.onConnect,
     required this.onDisconnect,
   });
@@ -26,8 +30,7 @@ class HomeTab extends StatelessWidget {
             'Swoosh Tennis Tracker',
             style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
           ),
-          const SizedBox(height: 40),
-
+          const SizedBox(height: 30),
           Card(
             margin: const EdgeInsets.symmetric(horizontal: 24),
             elevation: 4,
@@ -57,6 +60,33 @@ class HomeTab extends StatelessWidget {
 
                   const SizedBox(height: 20),
 
+                  // --- NEW SENSOR DISPLAY ---
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade100,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: Colors.grey.shade300),
+                    ),
+                    child: Column(
+                      children: [
+                        const Text("Proximity Sensor",
+                            style: TextStyle(fontSize: 12, color: Colors.grey)),
+                        const SizedBox(height: 4),
+                        Text(
+                          "$sensorDistance cm",
+                          style: const TextStyle(
+                              fontSize: 28,
+                              fontWeight: FontWeight.bold,
+                              fontFamily: 'Monospace'),
+                        ),
+                      ],
+                    ),
+                  ),
+                  // --------------------------
+
+                  const SizedBox(height: 20),
+
                   if (isScanning)
                     const CircularProgressIndicator()
                   else
@@ -70,20 +100,12 @@ class HomeTab extends StatelessWidget {
                             horizontal: 24, vertical: 12),
                       ),
                       icon: Icon(isConnected ? Icons.close : Icons.search),
-                      label: Text(isConnected
-                          ? "Disconnect from ESP32"
-                          : "Scan & Connect to ESP32"),
+                      label:
+                          Text(isConnected ? "Disconnect" : "Scan & Connect"),
                     ),
                 ],
               ),
             ),
-          ),
-
-          const SizedBox(height: 20),
-          const Text(
-            "Connect here to enable\nServo controls in the Camera tab.",
-            textAlign: TextAlign.center,
-            style: TextStyle(color: Colors.grey),
           ),
         ],
       ),
