@@ -1,6 +1,8 @@
+// lib/shell/app_shell.dart
+
 import 'dart:async';
 import 'dart:io';
-
+import 'dart:convert'; // Import for utf8 decoding
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -18,27 +20,28 @@ class AppShell extends StatefulWidget {
 class _AppShellState extends State<AppShell> {
   int _selectedIndex = 0;
 
-  // BLE client
   final FlutterReactiveBle _ble = FlutterReactiveBle();
 
-  // BLE state
   String _btStatus = "Disconnected";
   bool _isScanning = false;
   bool _isConnected = false;
   String? _deviceId;
 
-  // BLE UUIDs (must match ESP32 NimBLE code)
+  // New variable for sensor data
+  String _sensorDistance = "--";
+
+  // BLE UUIDs
   final Uuid _serviceUuid = Uuid.parse("12345678-1234-1234-1234-1234567890ab");
-  final Uuid _charUuid = Uuid.parse("12345678-1234-1234-1234-1234567890ac");
+  final Uuid _charUuidRx =
+      Uuid.parse("12345678-1234-1234-1234-1234567890ac"); // Write
+  final Uuid _charUuidTx =
+      Uuid.parse("12345678-1234-1234-1234-1234567890ad"); // Read/Notify (New)
 
   StreamSubscription<DiscoveredDevice>? _scanSub;
   StreamSubscription<ConnectionStateUpdate>? _connSub;
+  StreamSubscription<List<int>>? _sensorSub; // Subscription for sensor data
 
-  // ----------------------------------------------------------
-  // Scan & connect to SwooshESP32
-  // ----------------------------------------------------------
   Future<void> scanAndConnect() async {
-    // Android runtime permissions
     if (Platform.isAndroid) {
       await [
         Permission.bluetoothScan,
@@ -56,14 +59,9 @@ class _AppShellState extends State<AppShell> {
       withServices: [_serviceUuid],
       scanMode: ScanMode.lowLatency,
     ).listen((device) async {
-      // Debug
-      // print("Found: ${device.name} (${device.id})");
-
       if (device.name == "SwooshESP32") {
-        // Stop scanning once we find the ESP
         await _scanSub?.cancel();
         setState(() => _isScanning = false);
-
         await _connectToDevice(device.id);
       }
     }, onError: (e) {
@@ -74,108 +72,101 @@ class _AppShellState extends State<AppShell> {
     });
   }
 
-  // ----------------------------------------------------------
-  // Connect to device by id
-  // ----------------------------------------------------------
   Future<void> _connectToDevice(String deviceId) async {
     setState(() => _btStatus = "Connecting...");
-
     _deviceId = deviceId;
 
-    // connectToDevice returns a stream; cancelling it triggers disconnect
     _connSub = _ble
         .connectToDevice(
       id: deviceId,
       connectionTimeout: const Duration(seconds: 6),
     )
         .listen((update) {
-      // print("BLE state: ${update.connectionState}");
-
       if (update.connectionState == DeviceConnectionState.connected) {
         setState(() {
           _isConnected = true;
           _btStatus = "Connected";
         });
+
+        // Start listening to sensor immediately after connection
+        _subscribeToSensor(deviceId);
       } else if (update.connectionState == DeviceConnectionState.disconnected) {
-        setState(() {
-          _isConnected = false;
-          _btStatus = "Disconnected";
-          _deviceId = null;
-        });
+        _disconnect();
       }
     }, onError: (e) {
-      setState(() {
-        _btStatus = "Connection Failed";
-        _isConnected = false;
-      });
+      _disconnect();
     });
   }
 
-  // ----------------------------------------------------------
-  // Send servo command: "0", "1", "2", ...
-  // ----------------------------------------------------------
+  // LISTEN TO SENSOR DATA
+  void _subscribeToSensor(String deviceId) {
+    final characteristic = QualifiedCharacteristic(
+      deviceId: deviceId,
+      serviceId: _serviceUuid,
+      characteristicId: _charUuidTx,
+    );
+
+    _sensorSub = _ble.subscribeToCharacteristic(characteristic).listen((data) {
+      // Decode bytes to string
+      final distStr = utf8.decode(data);
+      if (mounted) {
+        setState(() {
+          _sensorDistance = distStr;
+        });
+      }
+    }, onError: (dynamic error) {
+      // Handle error
+    });
+  }
+
   Future<void> sendServoCommand(String cmd) async {
     if (_deviceId == null) return;
-
     final characteristic = QualifiedCharacteristic(
       deviceId: _deviceId!,
       serviceId: _serviceUuid,
-      characteristicId: _charUuid,
+      characteristicId: _charUuidRx,
     );
-
     try {
       await _ble.writeCharacteristicWithResponse(
         characteristic,
         value: cmd.codeUnits,
       );
-      // print("Sent command: $cmd");
     } catch (e) {
       // print("Write error: $e");
     }
   }
 
-  // ----------------------------------------------------------
-  // Disconnect (by cancelling connection stream)
-  // ----------------------------------------------------------
   void _disconnect() {
+    _scanSub?.cancel();
     _connSub?.cancel();
-    _connSub = null;
+    _sensorSub?.cancel(); // Cancel sensor subscription
 
     setState(() {
       _isConnected = false;
       _btStatus = "Disconnected";
       _deviceId = null;
+      _sensorDistance = "--";
     });
   }
 
-  // ----------------------------------------------------------
-  // UI
-  // ----------------------------------------------------------
   @override
   Widget build(BuildContext context) {
     final List<Widget> pages = [
-      // 1. HOME TAB (controls BLE connection)
       HomeTab(
         btStatus: _btStatus,
         isScanning: _isScanning,
         isConnected: _isConnected,
+        sensorDistance: _sensorDistance, // Pass data to UI
         onConnect: scanAndConnect,
         onDisconnect: _disconnect,
       ),
-
-      // 2. CAMERA TAB (sends servo commands over BLE)
       CameraPage(
         onSendCommand: sendServoCommand,
-        isConnected: _isConnected, // <— ADD THIS
+        isConnected: _isConnected,
       ),
-
-      // 3. Analytics
       const Center(
-        child: Text("Analytics Page", style: TextStyle(fontSize: 22)),
-      ),
-
-      // 4. Profile
-      const ProfilePage(), // 
+          child: Text("Analytics Page", style: TextStyle(fontSize: 22))),
+      const ProfilePage(),
     ];
 
     return Scaffold(
@@ -186,13 +177,10 @@ class _AppShellState extends State<AppShell> {
           IconButton(
             icon: const Icon(Icons.logout),
             onPressed: () async {
-              _disconnect(); // drop BLE connection
+              _disconnect();
               final navigator = Navigator.of(context);
               await FirebaseAuth.instance.signOut();
-              navigator.pushNamedAndRemoveUntil(
-                '/welcome',
-                (route) => false,
-              );
+              navigator.pushNamedAndRemoveUntil('/welcome', (route) => false);
             },
           ),
         ],
@@ -219,6 +207,7 @@ class _AppShellState extends State<AppShell> {
   void dispose() {
     _scanSub?.cancel();
     _connSub?.cancel();
+    _sensorSub?.cancel();
     super.dispose();
   }
 }
