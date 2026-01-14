@@ -1,14 +1,18 @@
-// Used on Web — tflite_flutter disabled
+// lib/ml_stub.dart
 
 class TFLiteManager {
+  // The compiler needs this property to exist, even if it's always false on Web
+  bool get isBusy => false;
   bool get isLoaded => false;
 
   Future<void> loadModel() async {
-    // Skip TFLite on Web
-    print("TFLite disabled on Web.");
+    print("TFLite disabled on Web (stub).");
   }
 
-  void close() {
-    // nothing to close
+  // Helper to prevent crashes if code tries to call detect() on Web
+  Future<List<Map<String, dynamic>>> detect(dynamic image) async {
+    return [];
   }
+
+  void close() {}
 }
