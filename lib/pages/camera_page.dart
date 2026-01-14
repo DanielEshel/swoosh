@@ -47,6 +47,8 @@ class _CameraPageState extends State<CameraPage> {
     _initCameraAndModel();
   }
 
+  List<Map<String, dynamic>> _detections = [];
+
   Future<void> _initCameraAndModel() async {
     try {
       final cameras = await availableCameras();
@@ -62,9 +64,21 @@ class _CameraPageState extends State<CameraPage> {
 
       await ctrl.initialize();
 
-      // Load ML only if available (Android/iOS)
-      // no tflite for now
-      // await _ml.loadModel();
+      // Load Model
+      await _ml.loadModel(); // Make sure this is uncommented
+
+      // Start Stream
+      ctrl.startImageStream((CameraImage image) {
+        // Throttle: Only process if not already busy processing a frame
+        if (!_ml.isBusy) {
+          _ml.detect(image).then((results) {
+            if (!mounted) return;
+            setState(() {
+              _detections = results;
+            });
+          });
+        }
+      });
 
       if (!mounted) return;
 
