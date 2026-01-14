@@ -2,9 +2,12 @@
 
 import 'dart:async';
 import 'dart:io';
-import 'dart:convert'; // Import for utf8 decoding
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+// 1. ADD THIS IMPORT
+import 'package:firebase_database/firebase_database.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:flutter_reactive_ble/flutter_reactive_ble.dart';
 
@@ -27,19 +30,15 @@ class _AppShellState extends State<AppShell> {
   bool _isConnected = false;
   String? _deviceId;
 
-  // New variable for sensor data
   String _sensorDistance = "--";
 
-  // BLE UUIDs
   final Uuid _serviceUuid = Uuid.parse("12345678-1234-1234-1234-1234567890ab");
-  final Uuid _charUuidRx =
-      Uuid.parse("12345678-1234-1234-1234-1234567890ac"); // Write
-  final Uuid _charUuidTx =
-      Uuid.parse("12345678-1234-1234-1234-1234567890ad"); // Read/Notify (New)
+  final Uuid _charUuidRx = Uuid.parse("12345678-1234-1234-1234-1234567890ac");
+  final Uuid _charUuidTx = Uuid.parse("12345678-1234-1234-1234-1234567890ad");
 
   StreamSubscription<DiscoveredDevice>? _scanSub;
   StreamSubscription<ConnectionStateUpdate>? _connSub;
-  StreamSubscription<List<int>>? _sensorSub; // Subscription for sensor data
+  StreamSubscription<List<int>>? _sensorSub;
 
   Future<void> scanAndConnect() async {
     if (Platform.isAndroid) {
@@ -88,7 +87,6 @@ class _AppShellState extends State<AppShell> {
           _btStatus = "Connected";
         });
 
-        // Start listening to sensor immediately after connection
         _subscribeToSensor(deviceId);
       } else if (update.connectionState == DeviceConnectionState.disconnected) {
         _disconnect();
@@ -98,7 +96,9 @@ class _AppShellState extends State<AppShell> {
     });
   }
 
-  // LISTEN TO SENSOR DATA
+  // ----------------------------------------------------------------------
+  // 2. UPDATED SENSOR LOGIC: Upload to Firebase
+  // ----------------------------------------------------------------------
   void _subscribeToSensor(String deviceId) {
     final characteristic = QualifiedCharacteristic(
       deviceId: deviceId,
@@ -107,15 +107,25 @@ class _AppShellState extends State<AppShell> {
     );
 
     _sensorSub = _ble.subscribeToCharacteristic(characteristic).listen((data) {
-      // Decode bytes to string
       final distStr = utf8.decode(data);
+
+      // Update UI locally
       if (mounted) {
         setState(() {
           _sensorDistance = distStr;
         });
       }
+
+      // Upload to Firebase Realtime Database
+      final user = FirebaseAuth.instance.currentUser;
+      if (user != null) {
+        // Path: users/{uid}/sensor/distance
+        FirebaseDatabase.instance
+            .ref("users/${user.uid}/sensor/distance")
+            .set(distStr);
+      }
     }, onError: (dynamic error) {
-      // Handle error
+      // print("Sensor error: $error");
     });
   }
 
@@ -139,7 +149,7 @@ class _AppShellState extends State<AppShell> {
   void _disconnect() {
     _scanSub?.cancel();
     _connSub?.cancel();
-    _sensorSub?.cancel(); // Cancel sensor subscription
+    _sensorSub?.cancel();
 
     setState(() {
       _isConnected = false;
@@ -156,7 +166,7 @@ class _AppShellState extends State<AppShell> {
         btStatus: _btStatus,
         isScanning: _isScanning,
         isConnected: _isConnected,
-        sensorDistance: _sensorDistance, // Pass data to UI
+        sensorDistance: _sensorDistance,
         onConnect: scanAndConnect,
         onDisconnect: _disconnect,
       ),
