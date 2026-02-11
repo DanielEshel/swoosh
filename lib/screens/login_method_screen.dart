@@ -12,40 +12,46 @@ class LoginMethodScreen extends StatelessWidget {
     final messenger = ScaffoldMessenger.of(context);
 
     try {
-      final GoogleSignInAccount? googleUser = await GoogleSignIn().signIn();
+      // 1. Initialize is required in v7 (often best done in initState, but works here too)
+      // await GoogleSignIn.instance.initialize(); // Optional: Uncomment if you face initialization errors
 
-    // If the user cancelled the login, stop here
-    if (googleUser == null) return;
+      // 2. Use authenticate() instead of signIn()
+      final GoogleSignInAccount googleUser =
+          await GoogleSignIn.instance.authenticate();
 
-    // 2. Obtain the auth details (tokens)
-    final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+      // 3. Get auth details (Remove 'await', it is now synchronous)
+      final GoogleSignInAuthentication googleAuth = googleUser.authentication;
 
-    // 3. Create a credential for Firebase
-    final credential = GoogleAuthProvider.credential(
-      accessToken: googleAuth.accessToken,
-      idToken: googleAuth.idToken,
-    );
+      // 4. Create credential (idToken is sufficient for Firebase Auth)
+      final credential = GoogleAuthProvider.credential(
+        idToken: googleAuth.idToken,
+        // accessToken is removed in v7 and usually not needed for Firebase login
+      );
 
-    // 4. Sign in to Firebase with the credential
-    final UserCredential userCredential = 
-        await FirebaseAuth.instance.signInWithCredential(credential);
-    
-    final user = userCredential.user;
+      final UserCredential userCredential =
+          await FirebaseAuth.instance.signInWithCredential(credential);
 
-    if (user != null) {
-      // make sure user firestore doc exists
-      ensureUserDoc(user);
+      final user = userCredential.user;
 
-      navigator.pushReplacementNamed('/home');
-    }
-    
+      if (user != null) {
+        ensureUserDoc(user); // Make sure this function is imported/defined
+        navigator.pushReplacementNamed('/home');
+      }
     } on FirebaseAuthException catch (e) {
       messenger.showSnackBar(
         SnackBar(content: Text(e.message ?? 'Login failed')),
       );
-    } catch (_) {
+    } catch (e) {
+      // 5. Handle cancellation (the user closed the popup)
+      // In v7, cancellation usually throws a PlatformException or just a generic error depending on platform
+      print('Sign in error: $e'); // Helpful for debugging
+      if (e.toString().contains('canceled') ||
+          e.toString().contains('cancelled')) {
+        return; // User closed the window, do nothing
+      }
+
       messenger.showSnackBar(
-        const SnackBar(content: Text('Something went wrong')),
+        const SnackBar(content: Text('Login failed')),
       );
     }
   }
