@@ -1,7 +1,5 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:io';
-import 'dart:math' as math;
 import 'package:camera/camera.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
