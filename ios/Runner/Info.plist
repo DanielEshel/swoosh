@@ -26,6 +26,14 @@
 	<true/>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>We need Bluetooth to connect to the tennis tracker.</string>
+	<key>NSBluetoothPeripheralUsageDescription</key>
+	<string>We need Bluetooth to connect to the tennis tracker.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>We need camera access to record your shots.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>We need microphone access to record audio with your video.</string>
 	<key>UIMainStoryboardFile</key>
 	<string>Main</string>
 	<key>UISupportedInterfaceOrientations</key>
@@ -55,8 +63,7 @@
             <string>Editor</string>
             <key>CFBundleURLSchemes</key>
             <array>
-                <string>com.googleusercontent.apps.com.googleusercontent.apps.887379670059-lanmqndui9hglp3ut5ivamccskliqv76</string>
-            </array>
+                <string>com.googleusercontent.apps.887379670059-lanmqndui9hglp3ut5ivamccskliqv76</string>
         </dict>
     </array>
 
