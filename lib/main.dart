@@ -11,8 +11,7 @@ import 'shell/app_shell.dart';
 import 'theme.dart';
 import 'screens/signup_screen.dart';
 import 'package:firebase_app_check/firebase_app_check.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
-
+import 'package:flutter/foundation.dart' show kIsWeb, kDebugMode;
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -27,8 +26,10 @@ void main() async {
   // Desktop: not supported.
   if (!kIsWeb) {
     await FirebaseAppCheck.instance.activate(
-      androidProvider: AndroidProvider.debug,
-      appleProvider: AppleProvider.debug,
+      androidProvider:
+          kDebugMode ? AndroidProvider.debug : AndroidProvider.playIntegrity,
+      appleProvider:
+          kDebugMode ? AppleProvider.debug : AppleProvider.deviceCheck,
     );
   }
 
