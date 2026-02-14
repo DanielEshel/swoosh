@@ -33,6 +33,14 @@ migrate_working_dir/
 .pub/
 /build/
 
+# Machine Learning Models
+*.tflite
+*.pb
+*.onnx
+
+# Large Assets
+assets/tracking/
+
 # Symbolication related
 app.*.symbols
 
