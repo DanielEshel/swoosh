@@ -44,7 +44,7 @@ dependencies:
 
   tflite_flutter: ^0.12.1
   google_fonts: ^6.2.0
-  image: ^3.0.2
+  image: ^4.2.0
 
  # Make sure these are all aligned:
   firebase_core: ^4.4.0

@@ -1,29 +1,32 @@
-import 'dart:typed_data';
+import 'dart:io';
 import 'package:camera/camera.dart';
 import 'package:flutter/services.dart';
 import 'package:tflite_flutter/tflite_flutter.dart';
 import 'package:image/image.dart' as img;
 
 class TFLiteManager {
+  static final TFLiteManager _instance = TFLiteManager._internal();
+  factory TFLiteManager() => _instance;
+  TFLiteManager._internal();
+  static TFLiteManager get instance => _instance;
+
   Interpreter? _interpreter;
   List<String>? _labels;
-
-  // 1. ADD THIS FLAG
   bool _isBusy = false;
+  int _lastRunTime = 0;
 
   bool get isLoaded => _interpreter != null;
-
-  // 2. ADD THIS GETTER
   bool get isBusy => _isBusy;
 
   Future<void> loadModel() async {
+    if (_interpreter != null) return;
     try {
       _interpreter =
-          await Interpreter.fromAsset('assets/tracking/tennis_ball.tflite');
-      _labels = await _loadLabels('assets/tracking/labels.txt');
-      print("TFLite model loaded.");
+          await Interpreter.fromAsset('assets/tracking/detect.tflite');
+      _labels = await _loadLabels('assets/tracking/labelmap.txt');
+      print("✅ TFLite model loaded.");
     } catch (e) {
-      print("Error loading model: $e");
+      print("❌ Error loading model: $e");
     }
   }
 
@@ -33,116 +36,132 @@ class TFLiteManager {
   }
 
   Future<List<Map<String, dynamic>>> detect(CameraImage image) async {
-    if (_interpreter == null || _isBusy) return [];
+    int now = DateTime.now().millisecondsSinceEpoch;
+    // Throttle to 300ms (approx 3 FPS)
+    if (_interpreter == null || _isBusy || (now - _lastRunTime < 300))
+      return [];
 
-    // 3. SET BUSY TO TRUE
     _isBusy = true;
+    _lastRunTime = now;
 
     try {
-      // Conversion logic (YUV -> RGB)
-      final img.Image? converted = _convertYUV420ToImage(image);
-      if (converted == null) return [];
-
-      // Resize to 300x300 (standard for SSD MobileNet)
-      final inputImage = img.copyResize(converted, width: 300, height: 300);
-
-      // Prepare input
-      var inputBytes = Uint8List(1 * 300 * 300 * 3);
-      var pixelIndex = 0;
-      for (var y = 0; y < 300; y++) {
-        for (var x = 0; x < 300; x++) {
-          var pixel = inputImage.getPixel(x, y);
-          inputBytes[pixelIndex++] = pixel.r.toInt();
-          inputBytes[pixelIndex++] = pixel.g.toInt();
-          inputBytes[pixelIndex++] = pixel.b.toInt();
-        }
+      img.Image? converted;
+      if (image.format.group == ImageFormatGroup.bgra8888) {
+        converted = img.Image.fromBytes(
+          width: image.width,
+          height: image.height,
+          bytes: image.planes[0].bytes.buffer,
+          order: img.ChannelOrder.bgra,
+        );
+      } else {
+        return [];
       }
 
-      // Prepare outputs
-      var outputLocations = List.filled(1 * 10 * 4, 0.0).reshape([1, 10, 4]);
-      var outputClasses = List.filled(1 * 10, 0.0).reshape([1, 10]);
-      var outputScores = List.filled(1 * 10, 0.0).reshape([1, 10]);
-      var numDetections = List.filled(1, 0.0).reshape([1]);
+      // Resize for Model (300x300)
+      final inputImage = img.copyResize(converted, width: 300, height: 300);
 
+      // --- 1. Prepare Input (RGB Integers) ---
+      var input = List.generate(
+        1,
+        (index) => List.generate(
+          300,
+          (y) => List.generate(300, (x) {
+            final pixel = inputImage.getPixel(x, y);
+            return [pixel.r.toInt(), pixel.g.toInt(), pixel.b.toInt()];
+          }),
+        ),
+      );
+
+      // --- 2. Run Inference ---
       var outputs = {
-        0: outputLocations,
-        1: outputClasses,
-        2: outputScores,
-        3: numDetections,
+        0: List.filled(1 * 10 * 4, 0.0).reshape([1, 10, 4]),
+        1: List.filled(1 * 10, 0.0).reshape([1, 10]),
+        2: List.filled(1 * 10, 0.0).reshape([1, 10]),
+        3: List.filled(1, 0.0).reshape([1]),
       };
 
-      // Run Inference
-      _interpreter!.runForMultipleInputs([inputBytes], outputs);
+      _interpreter!.runForMultipleInputs([input], outputs);
 
-      // Parse Results
+      // --- 3. Filter Results ---
       List<Map<String, dynamic>> results = [];
       for (int i = 0; i < 10; i++) {
-        double score = outputScores[0][i];
-        if (score > 0.5) {
-          int classIndex = (outputClasses[0][i] as double).toInt();
+        double score = (outputs[2] as List)[0][i];
+
+        // Use a reasonable threshold
+        if (score > 0.40) {
+          int classIndex = (outputs[1] as List)[0][i].toInt();
           String label = _labels != null && classIndex < _labels!.length
               ? _labels![classIndex]
               : "Unknown";
 
-          if (label.contains("ball")) {
-            results.add({
-              'label': label,
-              'score': score,
-              'rect': {
-                'y': outputLocations[0][i][0],
-                'x': outputLocations[0][i][1],
-                'h': outputLocations[0][i][2],
-                'w': outputLocations[0][i][3],
-              }
-            });
+          // STEP A: Label Check
+          // We accept "sports ball" (obviously) AND "apple"/"orange" (because tennis balls are round)
+          if (label.contains("ball") ||
+              label.contains("apple") ||
+              label.contains("orange")) {
+            final loc = (outputs[0] as List)[0][i];
+            // loc is [ymin, xmin, ymax, xmax] (0.0 to 1.0)
+
+            // STEP B: Color Check (The "Tennis Ball" filter)
+            // We sample the CENTER pixel of the detected box.
+            double centerY = loc[0] + (loc[2] - loc[0]) / 2;
+            double centerX = loc[1] + (loc[3] - loc[1]) / 2;
+
+            int pixelX = (centerX * 300).toInt().clamp(0, 299);
+            int pixelY = (centerY * 300).toInt().clamp(0, 299);
+
+            final centerPixel = inputImage.getPixel(pixelX, pixelY);
+
+            if (_isTennisBallColor(centerPixel)) {
+              print("🎾 VALID TENNIS BALL: $label ($score)");
+              results.add({
+                'label': "Tennis Ball", // Rename it for UI
+                'score': score,
+                'rect': {
+                  'y': loc[0],
+                  'x': loc[1],
+                  'h': loc[2] - loc[0],
+                  'w': loc[3] - loc[1],
+                }
+              });
+            } else {
+              // print("🚫 Ignored $label - Wrong Color (R:${centerPixel.r} G:${centerPixel.g} B:${centerPixel.b})");
+            }
           }
         }
       }
       return results;
     } catch (e) {
-      print("Inference error: $e");
+      print("❌ Inference error: $e");
       return [];
     } finally {
-      // 4. RESET BUSY TO FALSE
       _isBusy = false;
     }
   }
 
-  // Helper: YUV to RGB
-  img.Image? _convertYUV420ToImage(CameraImage cameraImage) {
-    if (cameraImage.planes.length < 3) return null;
-    final int width = cameraImage.width;
-    final int height = cameraImage.height;
-    final int uvRowStride = cameraImage.planes[1].bytesPerRow;
-    final int? uvPixelStride = cameraImage.planes[1].bytesPerPixel;
+  // --- THE COLOR LOGIC ---
+  bool _isTennisBallColor(img.Pixel pixel) {
+    // Tennis ball = High Green + High Red + Low Blue (Yellowish)
+    // White wall = High Green + High Red + High Blue (Ignored)
+    // Grey floor = Low Green + Low Red + Low Blue (Ignored)
 
-    final image = img.Image(width: width, height: height);
+    num r = pixel.r;
+    num g = pixel.g;
+    num b = pixel.b;
 
-    for (int w = 0; w < width; w++) {
-      for (int h = 0; h < height; h++) {
-        final int uvIndex =
-            uvPixelStride! * (w / 2).floor() + uvRowStride * (h / 2).floor();
-        final int index = h * width + w;
+    // 1. Must be bright enough (ignores dark shadows)
+    if (g < 70) return false;
 
-        final y = cameraImage.planes[0].bytes[index];
-        final u = cameraImage.planes[1].bytes[uvIndex];
-        final v = cameraImage.planes[2].bytes[uvIndex];
+    // 2. Must be more Green than Blue (removes white/grey/blue objects)
+    // We require a gap of at least 20.
+    if (g < (b + 20)) return false;
 
-        image.setPixelRgb(w, h, _yuv2rgb(y, u, v)[0], _yuv2rgb(y, u, v)[1],
-            _yuv2rgb(y, u, v)[2]);
-      }
-    }
-    return image;
+    // 3. Must be more Red than Blue (removes green grass/leaves, keeps yellow)
+    if (r < (b + 20)) return false;
+
+    return true;
   }
 
-  List<int> _yuv2rgb(int y, int u, int v) {
-    int r = (y + v * 1436 / 1024 - 179).round();
-    int g = (y - u * 46549 / 131072 + 44 - v * 93604 / 131072 + 91).round();
-    int b = (y + u * 1814 / 1024 - 227).round();
-    return [r.clamp(0, 255), g.clamp(0, 255), b.clamp(0, 255)];
-  }
-
-  void close() {
-    _interpreter?.close();
-  }
+  img.Image? _convertYUV420ToImage(CameraImage image) => null;
+  void close() => _interpreter?.close();
 }
