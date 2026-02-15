@@ -214,19 +214,29 @@ class _CameraPageState extends State<CameraPage> {
   }
 
   Widget _buildMarker(Map<String, dynamic> det) {
-    return LayoutBuilder(builder: (context, constraints) {
-      final rect = det['rect'];
-      return Positioned(
-        left: rect['x'] * constraints.maxWidth,
-        top: rect['y'] * constraints.maxHeight,
-        width: rect['w'] * constraints.maxWidth,
-        height: rect['h'] * constraints.maxHeight,
-        child: Container(
-          decoration: BoxDecoration(
-              border: Border.all(color: Colors.greenAccent, width: 3)),
+    final rect = det['rect'];
+
+    // We use a simple FractionallySizedBox or manual calculation
+    // since we already have normalized (0.0 to 1.0) coordinates.
+    return Positioned(
+      left: rect['x'] * MediaQuery.of(context).size.width,
+      top: rect['y'] * MediaQuery.of(context).size.height,
+      width: rect['w'] * MediaQuery.of(context).size.width,
+      height: rect['h'] * MediaQuery.of(context).size.height,
+      child: Container(
+        decoration: BoxDecoration(
+          border: Border.all(color: Colors.greenAccent, width: 3),
+          borderRadius: BorderRadius.circular(4),
         ),
-      );
-    });
+        child: Text(
+          " ${det['score'].toStringAsFixed(2)}",
+          style: const TextStyle(
+              color: Colors.greenAccent,
+              fontSize: 10,
+              backgroundColor: Colors.black54),
+        ),
+      ),
+    );
   }
 
   Widget _buildRecordUI() {

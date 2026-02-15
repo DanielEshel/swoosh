@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:camera/camera.dart';
 import 'package:flutter/services.dart';
 import 'package:tflite_flutter/tflite_flutter.dart';
@@ -11,40 +12,25 @@ class TFLiteManager {
   static TFLiteManager get instance => _instance;
 
   Interpreter? _interpreter;
-  List<String>? _labels;
   bool _isBusy = false;
-  int _lastRunTime = 0;
-
-  bool get isLoaded => _interpreter != null;
-  bool get isBusy => _isBusy;
 
   Future<void> loadModel() async {
     if (_interpreter != null) return;
     try {
       _interpreter =
           await Interpreter.fromAsset('assets/tracking/detect.tflite');
-      _labels = await _loadLabels('assets/tracking/labelmap.txt');
-      print("✅ TFLite model loaded.");
+      print("✅ YOLO11 High-Speed Loaded");
     } catch (e) {
-      print("❌ Error loading model: $e");
+      print("❌ Model Error: $e");
     }
   }
 
-  Future<List<String>> _loadLabels(String path) async {
-    final fileData = await rootBundle.loadString(path);
-    return fileData.split('\n');
-  }
-
   Future<List<Map<String, dynamic>>> detect(CameraImage image) async {
-    int now = DateTime.now().millisecondsSinceEpoch;
-    // Throttle to 300ms (approx 3 FPS)
-    if (_interpreter == null || _isBusy || (now - _lastRunTime < 300))
-      return [];
-
+    if (_interpreter == null || _isBusy) return [];
     _isBusy = true;
-    _lastRunTime = now;
 
     try {
+      // 1. Fast Conversion
       img.Image? converted;
       if (image.format.group == ImageFormatGroup.bgra8888) {
         converted = img.Image.fromBytes(
@@ -54,114 +40,80 @@ class TFLiteManager {
           order: img.ChannelOrder.bgra,
         );
       } else {
+        _isBusy = false;
         return [];
       }
 
-      // Resize for Model (300x300)
-      final inputImage = img.copyResize(converted, width: 300, height: 300);
-
-      // --- 1. Prepare Input (RGB Integers) ---
-      var input = List.generate(
-        1,
-        (index) => List.generate(
-          300,
-          (y) => List.generate(300, (x) {
-            final pixel = inputImage.getPixel(x, y);
-            return [pixel.r.toInt(), pixel.g.toInt(), pixel.b.toInt()];
-          }),
-        ),
+      // 2. Square Crop & Resize back to 640 (Fixes Bad Precondition)
+      int minDim = converted.width < converted.height
+          ? converted.width
+          : converted.height;
+      img.Image squareImg = img.copyCrop(
+        converted,
+        x: (converted.width - minDim) ~/ 2,
+        y: (converted.height - minDim) ~/ 2,
+        width: minDim,
+        height: minDim,
       );
+      img.Image resized = img.copyResize(squareImg, width: 640, height: 640);
 
-      // --- 2. Run Inference ---
-      var outputs = {
-        0: List.filled(1 * 10 * 4, 0.0).reshape([1, 10, 4]),
-        1: List.filled(1 * 10, 0.0).reshape([1, 10]),
-        2: List.filled(1 * 10, 0.0).reshape([1, 10]),
-        3: List.filled(1, 0.0).reshape([1]),
-      };
+      // 3. Optimized Float32 Buffer filling
+      var inputBuffer = Float32List(1 * 640 * 640 * 3);
+      int pixelIndex = 0;
 
-      _interpreter!.runForMultipleInputs([input], outputs);
+      // Using the internal buffer is faster than a standard for-in loop
+      final bytes = resized.buffer.asUint8List();
+      for (int i = 0; i < bytes.length; i += 4) {
+        // img package uses RGBA order by default
+        inputBuffer[pixelIndex++] = bytes[i] / 255.0; // R
+        inputBuffer[pixelIndex++] = bytes[i + 1] / 255.0; // G
+        inputBuffer[pixelIndex++] = bytes[i + 2] / 255.0; // B
+        // Skip i+3 (Alpha)
+      }
 
-      // --- 3. Filter Results ---
-      List<Map<String, dynamic>> results = [];
-      for (int i = 0; i < 10; i++) {
-        double score = (outputs[2] as List)[0][i];
+      // 4. Output: [1, 84, 8400]
+      var outputBuffer = List.filled(1 * 84 * 8400, 0.0).reshape([1, 84, 8400]);
+      _interpreter!.run(inputBuffer.buffer, outputBuffer);
 
-        // Use a reasonable threshold
-        if (score > 0.40) {
-          int classIndex = (outputs[1] as List)[0][i].toInt();
-          String label = _labels != null && classIndex < _labels!.length
-              ? _labels![classIndex]
-              : "Unknown";
+      List<List<double>> output = outputBuffer[0];
+      List<Map<String, dynamic>> detections = [];
 
-          // STEP A: Label Check
-          // We accept "sports ball" (obviously) AND "apple"/"orange" (because tennis balls are round)
-          if (label.contains("ball") ||
-              label.contains("apple") ||
-              label.contains("orange")) {
-            final loc = (outputs[0] as List)[0][i];
-            // loc is [ymin, xmin, ymax, xmax] (0.0 to 1.0)
+      // 5. Threshold at 6% as you requested
+      for (int i = 0; i < 8400; i++) {
+        double ballScore = output[36][i]; // Class 32: Sports Ball
 
-            // STEP B: Color Check (The "Tennis Ball" filter)
-            // We sample the CENTER pixel of the detected box.
-            double centerY = loc[0] + (loc[2] - loc[0]) / 2;
-            double centerX = loc[1] + (loc[3] - loc[1]) / 2;
-
-            int pixelX = (centerX * 300).toInt().clamp(0, 299);
-            int pixelY = (centerY * 300).toInt().clamp(0, 299);
-
-            final centerPixel = inputImage.getPixel(pixelX, pixelY);
-
-            if (_isTennisBallColor(centerPixel)) {
-              print("🎾 VALID TENNIS BALL: $label ($score)");
-              results.add({
-                'label': "Tennis Ball", // Rename it for UI
-                'score': score,
-                'rect': {
-                  'y': loc[0],
-                  'x': loc[1],
-                  'h': loc[2] - loc[0],
-                  'w': loc[3] - loc[1],
-                }
-              });
-            } else {
-              // print("🚫 Ignored $label - Wrong Color (R:${centerPixel.r} G:${centerPixel.g} B:${centerPixel.b})");
+        if (ballScore > 0.06) {
+          detections.add({
+            'label': 'Ball',
+            'score': ballScore,
+            'rect': {
+              'x': (output[0][i] - (output[2][i] / 2)) / 640.0,
+              'y': (output[1][i] - (output[3][i] / 2)) / 640.0,
+              'w': output[2][i] / 640.0,
+              'h': output[3][i] / 640.0,
             }
-          }
+          });
         }
       }
-      return results;
+
+      if (detections.isNotEmpty) {
+        detections.sort((a, b) => (b['score'] as double).compareTo(a['score']));
+        print(
+            "🎾 BALL DETECTED! (${(detections.first['score'] * 100).toStringAsFixed(1)}%)");
+        return [detections.first];
+      }
+
+      return [];
     } catch (e) {
-      print("❌ Inference error: $e");
+      print("❌ AI Error: $e");
       return [];
     } finally {
+      // 6. Mandatory Rest (Reduce sample rate to stop lag)
+      // This gives the CPU 500ms to recover between frames
+      await Future.delayed(const Duration(milliseconds: 500));
       _isBusy = false;
     }
   }
 
-  // --- THE COLOR LOGIC ---
-  bool _isTennisBallColor(img.Pixel pixel) {
-    // Tennis ball = High Green + High Red + Low Blue (Yellowish)
-    // White wall = High Green + High Red + High Blue (Ignored)
-    // Grey floor = Low Green + Low Red + Low Blue (Ignored)
-
-    num r = pixel.r;
-    num g = pixel.g;
-    num b = pixel.b;
-
-    // 1. Must be bright enough (ignores dark shadows)
-    if (g < 70) return false;
-
-    // 2. Must be more Green than Blue (removes white/grey/blue objects)
-    // We require a gap of at least 20.
-    if (g < (b + 20)) return false;
-
-    // 3. Must be more Red than Blue (removes green grass/leaves, keeps yellow)
-    if (r < (b + 20)) return false;
-
-    return true;
-  }
-
-  img.Image? _convertYUV420ToImage(CameraImage image) => null;
   void close() => _interpreter?.close();
 }
