@@ -1,9 +1,8 @@
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:camera/camera.dart';
-import 'package:flutter/services.dart';
+import 'package:flutter/foundation.dart';
 import 'package:tflite_flutter/tflite_flutter.dart';
-import 'package:image/image.dart' as img;
 
 class TFLiteManager {
   static final TFLiteManager _instance = TFLiteManager._internal();
@@ -14,15 +13,38 @@ class TFLiteManager {
   Interpreter? _interpreter;
   bool _isBusy = false;
 
+  // Re-added to fix your build errors
+  String lastStatus = "Initializing...";
+  static final ValueNotifier<String> status =
+      ValueNotifier<String>("Initializing...");
+
+  // Pre-allocated 448p buffer
+  late Float32List _inputBuffer;
+
   Future<void> loadModel() async {
     if (_interpreter != null) return;
     try {
-      _interpreter =
-          await Interpreter.fromAsset('assets/tracking/detect.tflite');
-      print("✅ YOLO11 High-Speed Loaded");
+      final options = InterpreterOptions()..threads = 4;
+      _interpreter = await Interpreter.fromAsset(
+        'assets/tracking/detect.tflite',
+        options: options,
+      );
+
+      // Even if your model was trained at 640, we will resize the tensors to 448
+      // to force the speed boost.
+      _interpreter!.resizeInputTensor(0, [1, 448, 448, 3]);
+      _interpreter!.allocateTensors();
+
+      _inputBuffer = Float32List(1 * 448 * 448 * 3);
+      _updateStatus("448p Engine Ready 🚀");
     } catch (e) {
-      print("❌ Model Error: $e");
+      _updateStatus("Load Error: $e");
     }
+  }
+
+  void _updateStatus(String msg) {
+    lastStatus = msg;
+    status.value = msg;
   }
 
   Future<List<Map<String, dynamic>>> detect(CameraImage image) async {
@@ -30,90 +52,87 @@ class TFLiteManager {
     _isBusy = true;
 
     try {
-      // 1. Fast Conversion
-      img.Image? converted;
-      if (image.format.group == ImageFormatGroup.bgra8888) {
-        converted = img.Image.fromBytes(
-          width: image.width,
-          height: image.height,
-          bytes: image.planes[0].bytes.buffer,
-          order: img.ChannelOrder.bgra,
-        );
-      } else {
-        _isBusy = false;
-        return [];
-      }
+      // 1. DIRECT 448p SAMPLING
+      // We read a 448x448 square from the center of your 1080p feed
+      _sample448pFromYUV(image);
 
-      // 2. Square Crop & Resize back to 640 (Fixes Bad Precondition)
-      int minDim = converted.width < converted.height
-          ? converted.width
-          : converted.height;
-      img.Image squareImg = img.copyCrop(
-        converted,
-        x: (converted.width - minDim) ~/ 2,
-        y: (converted.height - minDim) ~/ 2,
-        width: minDim,
-        height: minDim,
-      );
-      img.Image resized = img.copyResize(squareImg, width: 640, height: 640);
+      var input = _inputBuffer.reshape([1, 448, 448, 3]);
+      var output = List.filled(1 * 5 * 8400, 0.0).reshape([1, 5, 8400]);
 
-      // 3. Optimized Float32 Buffer filling
-      var inputBuffer = Float32List(1 * 640 * 640 * 3);
-      int pixelIndex = 0;
+      _interpreter!.run(input, output);
 
-      // Using the internal buffer is faster than a standard for-in loop
-      final bytes = resized.buffer.asUint8List();
-      for (int i = 0; i < bytes.length; i += 4) {
-        // img package uses RGBA order by default
-        inputBuffer[pixelIndex++] = bytes[i] / 255.0; // R
-        inputBuffer[pixelIndex++] = bytes[i + 1] / 255.0; // G
-        inputBuffer[pixelIndex++] = bytes[i + 2] / 255.0; // B
-        // Skip i+3 (Alpha)
-      }
-
-      // 4. Output: [1, 84, 8400]
-      var outputBuffer = List.filled(1 * 84 * 8400, 0.0).reshape([1, 84, 8400]);
-      _interpreter!.run(inputBuffer.buffer, outputBuffer);
-
-      List<List<double>> output = outputBuffer[0];
       List<Map<String, dynamic>> detections = [];
+      double topScore = 0.0;
 
-      // 5. Threshold at 6% as you requested
       for (int i = 0; i < 8400; i++) {
-        double ballScore = output[36][i]; // Class 32: Sports Ball
+        double score = output[0][4][i];
+        if (score > topScore) topScore = score;
 
-        if (ballScore > 0.06) {
+        // Requirement: 80% confidence
+        if (score > 0.80) {
           detections.add({
-            'label': 'Ball',
-            'score': ballScore,
+            'score': score,
             'rect': {
-              'x': (output[0][i] - (output[2][i] / 2)) / 640.0,
-              'y': (output[1][i] - (output[3][i] / 2)) / 640.0,
-              'w': output[2][i] / 640.0,
-              'h': output[3][i] / 640.0,
+              'x': (output[0][0][i] - output[0][2][i] / 2).clamp(0.0, 1.0),
+              'y': (output[0][1][i] - output[0][3][i] / 2).clamp(0.0, 1.0),
+              'w': output[0][2][i].clamp(0.0, 1.0),
+              'h': output[0][3][i].clamp(0.0, 1.0),
             }
           });
         }
       }
 
+      _updateStatus("AI @ 448p | Top: ${(topScore * 100).toStringAsFixed(1)}%");
+
       if (detections.isNotEmpty) {
         detections.sort((a, b) => (b['score'] as double).compareTo(a['score']));
-        print(
-            "🎾 BALL DETECTED! (${(detections.first['score'] * 100).toStringAsFixed(1)}%)");
         return [detections.first];
       }
-
       return [];
     } catch (e) {
-      print("❌ AI Error: $e");
       return [];
     } finally {
-      // 6. Mandatory Rest (Reduce sample rate to stop lag)
-      // This gives the CPU 500ms to recover between frames
-      await Future.delayed(const Duration(milliseconds: 500));
       _isBusy = false;
     }
   }
 
-  void close() => _interpreter?.close();
+  void _sample448pFromYUV(CameraImage image) {
+    final int width = image.width;
+    final int height = image.height;
+    final yPlane = image.planes[0].bytes;
+    final uPlane = image.planes[1].bytes;
+    final vPlane = image.planes[2].bytes;
+
+    final int uvRowStride = image.planes[1].bytesPerRow;
+    final int uvPixelStride = image.planes[1].bytesPerPixel!;
+
+    // Calculate center crop offsets
+    int size = (height < width) ? height : width;
+    int offsetX = (width - size) ~/ 2;
+    int offsetY = (height - size) ~/ 2;
+
+    int bufferIndex = 0;
+    for (int y = 0; y < 448; y++) {
+      int py = offsetY + (y * size ~/ 448);
+      for (int x = 0; x < 448; x++) {
+        int px = offsetX + (x * size ~/ 448);
+
+        int yIdx = py * width + px;
+        int uvIdx = (py ~/ 2) * uvRowStride + (px ~/ 2) * uvPixelStride;
+
+        int yp = yPlane[yIdx];
+        int up = uPlane[uvIdx];
+        int vp = vPlane[uvIdx];
+
+        // R, G, B normalization in one pass
+        _inputBuffer[bufferIndex++] =
+            (yp + 1.402 * (vp - 128)).clamp(0, 255) / 255.0;
+        _inputBuffer[bufferIndex++] =
+            (yp - 0.344136 * (up - 128) - 0.714136 * (vp - 128)).clamp(0, 255) /
+                255.0;
+        _inputBuffer[bufferIndex++] =
+            (yp + 1.772 * (up - 128)).clamp(0, 255) / 255.0;
+      }
+    }
+  }
 }

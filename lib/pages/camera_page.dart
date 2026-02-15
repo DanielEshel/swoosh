@@ -208,6 +208,40 @@ class _CameraPageState extends State<CameraPage> {
             Container(
                 color: Colors.black54,
                 child: Center(child: CircularProgressIndicator())),
+
+          // Inside your Stack widget in the build method:
+          Positioned(
+            top: 50,
+            left: 20,
+            child: Container(
+              padding: EdgeInsets.all(8),
+              color: Colors.black54,
+              child: Text(
+                TFLiteManager.instance.lastStatus,
+                style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold),
+              ),
+            ),
+          ),
+          ValueListenableBuilder<String>(
+            valueListenable: TFLiteManager.status,
+            builder: (context, value, child) {
+              return Positioned(
+                top: 60,
+                left: 20,
+                child: Container(
+                  padding: const EdgeInsets.all(8),
+                  color: Colors.black54,
+                  child: Text(
+                    value,
+                    style: const TextStyle(color: Colors.white, fontSize: 14),
+                  ),
+                ),
+              );
+            },
+          ),
         ],
       ),
     );
