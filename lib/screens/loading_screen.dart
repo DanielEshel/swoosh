@@ -35,8 +35,8 @@ class LoadingScreen extends StatelessWidget {
                 children: [
                   Text("SWOOSH",
                       style: Theme.of(context).textTheme.headlineLarge),
-                  SizedBox(height: 30),
-                  Center(child: CircularProgressIndicator()),
+                  const SizedBox(height: 30),
+                  const Center(child: CircularProgressIndicator()),
                 ],
               ),
             ),

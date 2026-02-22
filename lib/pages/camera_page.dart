@@ -5,7 +5,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
-import '../ml_stub.dart' if (dart.library.ffi) '../ml_native.dart';
+import '../ml_native.dart';
 
 class CameraPage extends StatefulWidget {
   final Future<void> Function(String) onSendCommand;
@@ -20,7 +20,6 @@ class CameraPage extends StatefulWidget {
 
 class _CameraPageState extends State<CameraPage> {
   CameraController? _controller;
-  // Use Singleton
   final TFLiteManager _ml = TFLiteManager.instance;
 
   bool _isInitialized = false;
@@ -30,6 +29,7 @@ class _CameraPageState extends State<CameraPage> {
 
   List<Map<String, dynamic>> _detections = [];
   String _lastCommand = "S";
+  CameraDescription? _selectedCamera;
 
   @override
   void initState() {
@@ -42,9 +42,11 @@ class _CameraPageState extends State<CameraPage> {
       final cameras = await availableCameras();
       if (cameras.isEmpty) throw Exception("No cameras available");
 
+      _selectedCamera = cameras.first;
+
       final ctrl = CameraController(
-        cameras.first,
-        ResolutionPreset.medium, // Keeping it medium to reduce lag
+        _selectedCamera!,
+        ResolutionPreset.medium,
         enableAudio: true,
         imageFormatGroup: Platform.isIOS
             ? ImageFormatGroup.bgra8888
@@ -52,21 +54,13 @@ class _CameraPageState extends State<CameraPage> {
       );
 
       await ctrl.initialize();
-
-      // We don't load model here anymore, it's done in main.dart!
+      await _ml.loadModel();
 
       ctrl.startImageStream((image) {
-        // Only run if manager is ready
-        if (mounted) {
-          _ml.detect(image).then((results) {
+        if (mounted && _selectedCamera != null) {
+          _ml.detect(image, _selectedCamera!).then((results) {
             if (!mounted) return;
-            if (results.isNotEmpty) {
-              setState(() => _detections = results);
-              // Log coordinates to console as requested
-              print("📍 Ball at: ${results.first['rect']}");
-            } else {
-              if (_detections.isNotEmpty) setState(() => _detections = []);
-            }
+            setState(() => _detections = results);
             _runTrackingLogic(results);
           });
         }
@@ -87,14 +81,15 @@ class _CameraPageState extends State<CameraPage> {
       return;
     }
 
-    final ballX = results.first['rect']['x'] + (results.first['rect']['w'] / 2);
+    final rect = results.first['rect'];
+    final ballX = rect['x'] + (rect['w'] / 2);
 
     if (ballX < 0.4) {
-      _sendTrackingCommand("0");
+      _sendTrackingCommand("0"); // Left
     } else if (ballX > 0.6) {
-      _sendTrackingCommand("1");
+      _sendTrackingCommand("1"); // Right
     } else {
-      _sendTrackingCommand("S");
+      _sendTrackingCommand("S"); // Stop
     }
   }
 
@@ -112,28 +107,20 @@ class _CameraPageState extends State<CameraPage> {
     try {
       await _controller!.startVideoRecording();
       setState(() => _isRecording = true);
-      print("🎥 Recording Started");
     } catch (e) {
       print("❌ Start Recording Error: $e");
     }
   }
 
   Future<void> _stopRecording() async {
-    if (_controller == null) return;
-    // CRASH FIX: Checking state before stopping
-    if (!_controller!.value.isRecordingVideo) {
-      setState(() => _isRecording = false);
-      return;
-    }
-
+    if (_controller == null || !_controller!.value.isRecordingVideo) return;
     try {
       final XFile file = await _controller!.stopVideoRecording();
       setState(() => _isRecording = false);
-      print("✅ Recording Stopped: ${file.path}");
       _uploadVideo(File(file.path));
     } catch (e) {
       print("❌ Stop Recording Error: $e");
-      setState(() => _isRecording = false); // Reset state anyway
+      setState(() => _isRecording = false);
     }
   }
 
@@ -151,7 +138,6 @@ class _CameraPageState extends State<CameraPage> {
         "timestamp": ServerValue.timestamp,
         "title": fileName,
       });
-      print("☁️ Upload Complete");
     } catch (e) {
       print("❌ Upload Error: $e");
     } finally {
@@ -167,66 +153,80 @@ class _CameraPageState extends State<CameraPage> {
 
   @override
   Widget build(BuildContext context) {
-    if (_errorMessage != null)
+    if (_errorMessage != null) {
       return Scaffold(body: Center(child: Text(_errorMessage!)));
-    if (!_isInitialized)
+    }
+    if (!_isInitialized) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
 
     return Scaffold(
       appBar: AppBar(title: const Text("Tennis Tracker")),
-      body: Stack(
-        fit: StackFit.expand,
-        children: [
-          CameraPreview(_controller!),
+      body: LayoutBuilder(builder: (context, constraints) {
+        return Stack(
+          fit: StackFit.expand,
+          children: [
+            CameraPreview(_controller!),
 
-          // Debug Text Overlay
-          Positioned(
-            top: 20,
-            left: 20,
-            child: Text(
-              _detections.isEmpty ? "Scanning..." : "BALL FOUND!",
-              style: TextStyle(
-                  color:
-                      _detections.isEmpty ? Colors.white : Colors.greenAccent,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 20),
-            ),
-          ),
+            // Bounding Box Overlay
+            for (var det in _detections) _buildMarker(det, constraints),
 
-          for (var det in _detections) _buildMarker(det),
-
-          if (!widget.isConnected)
+            // UI Overlays
             Positioned(
-                top: 60,
-                left: 20,
-                child: Text("⚠️ Bluetooth Disconnected",
-                    style: TextStyle(color: Colors.red))),
+              top: 20,
+              left: 20,
+              child: Text(
+                _detections.isEmpty ? "Scanning..." : "BALL FOUND!",
+                style: TextStyle(
+                    color:
+                        _detections.isEmpty ? Colors.white : Colors.greenAccent,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 20),
+              ),
+            ),
 
-          _buildRecordUI(),
+            if (!widget.isConnected)
+              const Positioned(
+                  top: 60,
+                  left: 20,
+                  child: Text("⚠️ Bluetooth Disconnected",
+                      style: TextStyle(color: Colors.red))),
 
-          if (_isUploading)
-            Container(
-                color: Colors.black54,
-                child: Center(child: CircularProgressIndicator())),
-        ],
-      ),
+            _buildRecordUI(),
+
+            if (_isUploading)
+              Container(
+                  color: Colors.black54,
+                  child: const Center(child: CircularProgressIndicator())),
+          ],
+        );
+      }),
     );
   }
 
-  Widget _buildMarker(Map<String, dynamic> det) {
-    return LayoutBuilder(builder: (context, constraints) {
-      final rect = det['rect'];
-      return Positioned(
-        left: rect['x'] * constraints.maxWidth,
-        top: rect['y'] * constraints.maxHeight,
-        width: rect['w'] * constraints.maxWidth,
-        height: rect['h'] * constraints.maxHeight,
-        child: Container(
-          decoration: BoxDecoration(
-              border: Border.all(color: Colors.greenAccent, width: 3)),
+  Widget _buildMarker(Map<String, dynamic> det, BoxConstraints constraints) {
+    final rect = det['rect'];
+    return Positioned(
+      left: rect['x'] * constraints.maxWidth,
+      top: rect['y'] * constraints.maxHeight,
+      width: rect['w'] * constraints.maxWidth,
+      height: rect['h'] * constraints.maxHeight,
+      child: Container(
+        decoration: BoxDecoration(
+            border: Border.all(color: Colors.greenAccent, width: 3)),
+        child: Align(
+          alignment: Alignment.topLeft,
+          child: Container(
+            color: Colors.black45,
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+            child: Text(
+              "${det['label']} ${(det['score'] * 100).toInt()}%",
+              style: const TextStyle(color: Colors.greenAccent, fontSize: 10),
+            ),
+          ),
         ),
-      );
-    });
+      ),
+    );
   }
 
   Widget _buildRecordUI() {

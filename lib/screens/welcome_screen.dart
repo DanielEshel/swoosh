@@ -16,15 +16,15 @@ class WelcomeScreen extends StatelessWidget {
               "SWOOSH",
               style: Theme.of(context).textTheme.displayLarge
             ),
-            SizedBox(height: 30),
+            const SizedBox(height: 30),
             ElevatedButton(
               onPressed: () {
                 Navigator.pushNamed(context, '/login-method');
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: scheme.primaryContainer,
-                padding: EdgeInsets.symmetric(horizontal: 40, vertical: 15),
-                shape: RoundedRectangleBorder(
+                padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 15),
+                shape: const RoundedRectangleBorder(
                   borderRadius: BorderRadius.all(Radius.circular(14)),
 
 

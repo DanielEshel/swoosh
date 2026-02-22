@@ -15,13 +15,19 @@ class LoginMethodScreen extends StatelessWidget {
       // 1. Initialize is required in v7 (often best done in initState, but works here too)
       // await GoogleSignIn.instance.initialize(); // Optional: Uncomment if you face initialization errors
 
-      // 2. Use authenticate() instead of signIn()
-      final GoogleSignInAccount googleUser =
-          await GoogleSignIn.instance.authenticate();
+      // 2. Use authenticate() instead of signIn(
+      final GoogleSignIn googleSignIn = GoogleSignIn();
+      final GoogleSignInAccount? googleUser = await googleSignIn.signIn();
 
-      // 3. Get auth details (Remove 'await', it is now synchronous)
-      final GoogleSignInAuthentication googleAuth = googleUser.authentication;
+      // 3. Check if the user cancelled the login flow (googleUser will be null)
+      if (googleUser == null) {
+        // The user cancelled the login, so we should stop here.
+        return;
+      }
 
+      // 4. NOW you have 'googleUser' and can get the authentication tokens
+      final GoogleSignInAuthentication googleAuth =
+          await googleUser.authentication;
       // 4. Create credential (idToken is sufficient for Firebase Auth)
       final credential = GoogleAuthProvider.credential(
         idToken: googleAuth.idToken,
@@ -65,7 +71,7 @@ class LoginMethodScreen extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Text(
+            const Text(
               "Choose your sign-in method",
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.w500),
             ),
