@@ -12,8 +12,6 @@
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
 	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
-	<key>LSApplicationCategoryType</key>
-	<string></string>
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
@@ -39,14 +37,16 @@
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>GIDClientID</key>
 	<string>887379670059-lanmqndui9hglp3ut5ivamccskliqv76.apps.googleusercontent.com</string>
+	<key>LSApplicationCategoryType</key>
+	<string></string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSBluetoothAlwaysUsageDescription</key>
-	<string>We need Bluetooth to connect to the tennis tracker.</string>
+	<string>Swoosh uses Bluetooth to control the servo motor.</string>
 	<key>NSBluetoothPeripheralUsageDescription</key>
-	<string>We need Bluetooth to connect to the tennis tracker.</string>
+	<string>Swoosh uses Bluetooth to control the servo motor.</string>
 	<key>NSCameraUsageDescription</key>
-	<string>We need camera access to record your shots.</string>
+	<string>Swoosh uses the camera to track the tennis ball position.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>We need microphone access to record audio with your video.</string>
 	<key>UIApplicationSceneManifest</key>
@@ -72,6 +72,10 @@
 	</dict>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>bluetooth-central</string>
+	</array>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>

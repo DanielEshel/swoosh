@@ -1,13 +1,12 @@
-//
-//  CameraTextureController.swift
-//  Runner
-//
-//  Created by Daniel Eshel on 13/04/2026.
-//
 import Foundation
 import AVFoundation
 import Flutter
 import CoreVideo
+
+// 1. Add this protocol so the plugin can listen for frames
+protocol CameraFrameDelegate: AnyObject {
+    func didCaptureFrame(pixelBuffer: CVPixelBuffer)
+}
 
 class CameraTextureController: NSObject, FlutterTexture, AVCaptureVideoDataOutputSampleBufferDelegate {
     
@@ -15,11 +14,10 @@ class CameraTextureController: NSObject, FlutterTexture, AVCaptureVideoDataOutpu
     private var textureId: Int64 = 0
     private let captureSession = AVCaptureSession()
     
-    // This holds the most recent frame for Flutter to draw
     private var latestPixelBuffer: CVPixelBuffer?
     
-    // We will pass frames to this closure so your ML model can process them
-    var onFrameAvailable: ((CVPixelBuffer) -> Void)?
+    // 2. Add the delegate property
+    weak var frameDelegate: CameraFrameDelegate?
 
     init(registry: FlutterTextureRegistry) {
         self.registry = registry
@@ -33,7 +31,7 @@ class CameraTextureController: NSObject, FlutterTexture, AVCaptureVideoDataOutpu
 
     func startCamera() {
         captureSession.beginConfiguration()
-        captureSession.sessionPreset = .vga640x480 // Keeps resolution low for ML performance
+        captureSession.sessionPreset = .vga640x480
         
         guard let backCamera = AVCaptureDevice.default(for: .video),
               let input = try? AVCaptureDeviceInput(device: backCamera) else {
@@ -46,7 +44,6 @@ class CameraTextureController: NSObject, FlutterTexture, AVCaptureVideoDataOutpu
         }
         
         let videoOutput = AVCaptureVideoDataOutput()
-        // BGRA format is what FlutterTexture expects natively
         videoOutput.videoSettings = [kCVPixelBufferPixelFormatTypeKey as String: Int(kCVPixelFormatType_32BGRA)]
         videoOutput.alwaysDiscardsLateVideoFrames = true
         
@@ -57,12 +54,9 @@ class CameraTextureController: NSObject, FlutterTexture, AVCaptureVideoDataOutpu
             captureSession.addOutput(videoOutput)
         }
         
-        // Lock to portrait orientation for now to match UI
         if let connection = videoOutput.connection(with: .video) {
             if #available(iOS 17.0, *) {
                 connection.videoRotationAngle = 90
-            } else {
-                // Fallback on earlier versions
             }
         }
         
@@ -78,20 +72,16 @@ class CameraTextureController: NSObject, FlutterTexture, AVCaptureVideoDataOutpu
     }
 
     // MARK: - AVCaptureVideoDataOutputSampleBufferDelegate
-    // This fires 30 times a second when the camera captures a frame
     func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
         guard let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
         
-        // 1. Save the frame for Flutter to draw
         latestPixelBuffer = pixelBuffer
         registry.textureFrameAvailable(textureId)
         
-        // 2. Fork the frame to our ML pipeline
-        onFrameAvailable?(pixelBuffer)
+        // 3. Send the frame to the ML pipeline!
+        frameDelegate?.didCaptureFrame(pixelBuffer: pixelBuffer)
     }
 
-    // MARK: - FlutterTexture Protocol
-    // Flutter's GPU thread calls this to pull the frame to the screen
     func copyPixelBuffer() -> Unmanaged<CVPixelBuffer>? {
         guard let pixelBuffer = latestPixelBuffer else { return nil }
         return Unmanaged.passRetained(pixelBuffer)

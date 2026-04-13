@@ -8,14 +8,25 @@ import UIKit
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
   ) -> Bool {
       
-    let controller : FlutterViewController = window?.rootViewController as! FlutterViewController
-    
-    // Pass 'controller' as the registry since FlutterViewController conforms to it
-    let trackerPlugin = BallTrackerPlugin(messenger: controller.binaryMessenger, registry: controller)
-      
-    BallTrackerApiSetup.setUp(binaryMessenger: controller.binaryMessenger, api: trackerPlugin)
-      
+    // 1. Register standard Flutter plugins first
     GeneratedPluginRegistrant.register(with: self)
+      
+    // 2. Ask Flutter for a safe "registrar" for your custom plugin
+    // This gives us safe access to the messenger and texture registry
+    let registrar = self.registrar(forPlugin: "BallTrackerPlugin")!
+    
+    // 3. Initialize your plugin using the registrar
+    let trackerPlugin = BallTrackerPlugin(
+        messenger: registrar.messenger(),
+        registry: registrar.textures()
+    )
+      
+    // 4. Connect your Pigeon API
+    BallTrackerApiSetup.setUp(
+        binaryMessenger: registrar.messenger(),
+        api: trackerPlugin
+    )
+      
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
   }
 }

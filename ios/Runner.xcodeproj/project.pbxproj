@@ -10,6 +10,9 @@
 		1498D2341E8E89220040F4C2 /* GeneratedPluginRegistrant.m in Sources */ = {isa = PBXBuildFile; fileRef = 1498D2331E8E89220040F4C2 /* GeneratedPluginRegistrant.m */; };
 		331C808B294A63AB00263BE5 /* RunnerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 331C807B294A618700263BE5 /* RunnerTests.swift */; };
 		3B3967161E833CAA004F5970 /* AppFrameworkInfo.plist in Resources */ = {isa = PBXBuildFile; fileRef = 3B3967151E833CAA004F5970 /* AppFrameworkInfo.plist */; };
+		5F1342DB2F8D365900014D27 /* Vision.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 5F1342DA2F8D365900014D27 /* Vision.framework */; settings = {ATTRIBUTES = (Weak, ); }; };
+		5F1342DD2F8D367D00014D27 /* CoreML.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 5F1342DC2F8D367D00014D27 /* CoreML.framework */; settings = {ATTRIBUTES = (Weak, ); }; };
+		5F1342E42F8D429500014D27 /* yolo26n.mlpackage in Sources */ = {isa = PBXBuildFile; fileRef = 5F1342E32F8D429500014D27 /* yolo26n.mlpackage */; };
 		5F5BBD5C2F8CE84200243AE3 /* TrackingApi.g.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F5BBD5B2F8CE84200243AE3 /* TrackingApi.g.swift */; };
 		5F5BBD5E2F8CE89B00243AE3 /* BallTrackerPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F5BBD5D2F8CE88000243AE3 /* BallTrackerPlugin.swift */; };
 		5F5BBD602F8CEA8900243AE3 /* CameraTextureController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F5BBD5F2F8CEA8400243AE3 /* CameraTextureController.swift */; };
@@ -55,6 +58,9 @@
 		3AAFCBA662A4E57119ADCB40 /* Pods-RunnerTests.profile.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-RunnerTests.profile.xcconfig"; path = "Target Support Files/Pods-RunnerTests/Pods-RunnerTests.profile.xcconfig"; sourceTree = "<group>"; };
 		3B3967151E833CAA004F5970 /* AppFrameworkInfo.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = AppFrameworkInfo.plist; path = Flutter/AppFrameworkInfo.plist; sourceTree = "<group>"; };
 		3BB849945480AD9DE5C15C02 /* Pods_Runner.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_Runner.framework; sourceTree = BUILT_PRODUCTS_DIR; };
+		5F1342DA2F8D365900014D27 /* Vision.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Vision.framework; path = System/Library/Frameworks/Vision.framework; sourceTree = SDKROOT; };
+		5F1342DC2F8D367D00014D27 /* CoreML.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreML.framework; path = System/Library/Frameworks/CoreML.framework; sourceTree = SDKROOT; };
+		5F1342E32F8D429500014D27 /* yolo26n.mlpackage */ = {isa = PBXFileReference; lastKnownFileType = folder.mlpackage; path = yolo26n.mlpackage; sourceTree = "<group>"; };
 		5F5BBD5B2F8CE84200243AE3 /* TrackingApi.g.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrackingApi.g.swift; sourceTree = "<group>"; };
 		5F5BBD5D2F8CE88000243AE3 /* BallTrackerPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BallTrackerPlugin.swift; sourceTree = "<group>"; };
 		5F5BBD5F2F8CEA8400243AE3 /* CameraTextureController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraTextureController.swift; sourceTree = "<group>"; };
@@ -88,6 +94,8 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				5F1342DD2F8D367D00014D27 /* CoreML.framework in Frameworks */,
+				5F1342DB2F8D365900014D27 /* Vision.framework in Frameworks */,
 				F1A134FB45EEA77484E5EA18 /* Pods_Runner.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -114,6 +122,14 @@
 				331C807B294A618700263BE5 /* RunnerTests.swift */,
 			);
 			path = RunnerTests;
+			sourceTree = "<group>";
+		};
+		5F1342DE2F8D39A300014D27 /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				5F1342E32F8D429500014D27 /* yolo26n.mlpackage */,
+			);
+			path = Models;
 			sourceTree = "<group>";
 		};
 		9740EEB11CF90186004384FC /* Flutter */ = {
@@ -151,6 +167,7 @@
 		97C146F01CF9000F007C117D /* Runner */ = {
 			isa = PBXGroup;
 			children = (
+				5F1342DE2F8D39A300014D27 /* Models */,
 				5F5BBD652F8CF8D200243AE3 /* CoreMLInference.swift */,
 				5F5BBD5F2F8CEA8400243AE3 /* CameraTextureController.swift */,
 				5F5BBD5D2F8CE88000243AE3 /* BallTrackerPlugin.swift */,
@@ -170,6 +187,8 @@
 		9F9DAB194CF0416BF99F20DF /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
+				5F1342DC2F8D367D00014D27 /* CoreML.framework */,
+				5F1342DA2F8D365900014D27 /* Vision.framework */,
 				3BB849945480AD9DE5C15C02 /* Pods_Runner.framework */,
 				1CF9BF1366B21992F0F25EF0 /* Pods_RunnerTests.framework */,
 			);
@@ -312,13 +331,9 @@
 			inputFileListPaths = (
 				"${PODS_ROOT}/Target Support Files/Pods-Runner/Pods-Runner-frameworks-${CONFIGURATION}-input-files.xcfilelist",
 			);
-			inputPaths = (
-			);
 			name = "[CP] Embed Pods Frameworks";
 			outputFileListPaths = (
 				"${PODS_ROOT}/Target Support Files/Pods-Runner/Pods-Runner-frameworks-${CONFIGURATION}-output-files.xcfilelist",
-			);
-			outputPaths = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
@@ -371,13 +386,9 @@
 			inputFileListPaths = (
 				"${PODS_ROOT}/Target Support Files/Pods-Runner/Pods-Runner-resources-${CONFIGURATION}-input-files.xcfilelist",
 			);
-			inputPaths = (
-			);
 			name = "[CP] Copy Pods Resources";
 			outputFileListPaths = (
 				"${PODS_ROOT}/Target Support Files/Pods-Runner/Pods-Runner-resources-${CONFIGURATION}-output-files.xcfilelist",
-			);
-			outputPaths = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
@@ -414,6 +425,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				5F1342E42F8D429500014D27 /* yolo26n.mlpackage in Sources */,
 				5F5BBD5E2F8CE89B00243AE3 /* BallTrackerPlugin.swift in Sources */,
 				5F5BBD662F8CF8D500243AE3 /* CoreMLInference.swift in Sources */,
 				5F5BBD5C2F8CE84200243AE3 /* TrackingApi.g.swift in Sources */,
@@ -509,7 +521,7 @@
 		};
 		249021D4217E4FDB00AE95B9 /* Profile */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 69ED9EA55C6ED8D732DD81FE /* Pods-Runner.profile.xcconfig */;
+			baseConfigurationReference = 9740EEB31CF90195004384FC /* Generated.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
@@ -517,15 +529,21 @@
 				DEVELOPMENT_TEAM = L2M55JUVBP;
 				ENABLE_BITCODE = NO;
 				INFOPLIST_FILE = Runner/Info.plist;
-				IPHONEOS_DEPLOYMENT_TARGET = 15.6;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.6;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.example.swoosh;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SWIFT_OBJC_BRIDGING_HEADER = "Runner/Runner-Bridging-Header.h";
+				SWIFT_STRICT_CONCURRENCY = minimal;
 				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
 				VERSIONING_SYSTEM = "apple-generic";
 			};
 			name = Profile;
@@ -700,7 +718,7 @@
 		};
 		97C147061CF9000F007C117D /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = A1B7E9C63C7EB511B5C29837 /* Pods-Runner.debug.xcconfig */;
+			baseConfigurationReference = 9740EEB21CF90195004384FC /* Debug.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
@@ -708,23 +726,29 @@
 				DEVELOPMENT_TEAM = L2M55JUVBP;
 				ENABLE_BITCODE = NO;
 				INFOPLIST_FILE = Runner/Info.plist;
-				IPHONEOS_DEPLOYMENT_TARGET = 15.6;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.6;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.example.swoosh;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SWIFT_OBJC_BRIDGING_HEADER = "Runner/Runner-Bridging-Header.h";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_STRICT_CONCURRENCY = minimal;
 				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
 				VERSIONING_SYSTEM = "apple-generic";
 			};
 			name = Debug;
 		};
 		97C147071CF9000F007C117D /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = D3367F44CBBB25A90BF839C6 /* Pods-Runner.release.xcconfig */;
+			baseConfigurationReference = 7AFA3C8E1D35360C0083082E /* Release.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
@@ -732,15 +756,21 @@
 				DEVELOPMENT_TEAM = L2M55JUVBP;
 				ENABLE_BITCODE = NO;
 				INFOPLIST_FILE = Runner/Info.plist;
-				IPHONEOS_DEPLOYMENT_TARGET = 15.6;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.6;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.example.swoosh;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SWIFT_OBJC_BRIDGING_HEADER = "Runner/Runner-Bridging-Header.h";
+				SWIFT_STRICT_CONCURRENCY = minimal;
 				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
 				VERSIONING_SYSTEM = "apple-generic";
 			};
 			name = Release;
