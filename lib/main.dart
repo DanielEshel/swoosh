@@ -12,7 +12,6 @@ import 'theme.dart';
 import 'screens/signup_screen.dart';
 import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:flutter/foundation.dart' show kIsWeb, kDebugMode;
-import './ml_stub.dart' if (dart.library.ffi) './ml_native.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -33,8 +32,6 @@ void main() async {
           kDebugMode ? AppleProvider.debug : AppleProvider.deviceCheck,
     );
   }
-
-  await TFLiteManager.instance.loadModel();
 
   runApp(const SwooshApp());
 }

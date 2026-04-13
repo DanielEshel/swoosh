@@ -1454,29 +1454,7 @@ PODS:
     - Protobuf (~> 3.5)
     - SwiftProtobuf (~> 1.0)
   - RecaptchaInterop (101.0.0)
-  - SwiftProtobuf (1.34.1)
-  - TensorFlowLiteC (2.12.0):
-    - TensorFlowLiteC/Core (= 2.12.0)
-  - TensorFlowLiteC/Core (2.12.0)
-  - TensorFlowLiteC/CoreML (2.12.0):
-    - TensorFlowLiteC/Core
-  - TensorFlowLiteC/Metal (2.12.0):
-    - TensorFlowLiteC/Core
-  - TensorFlowLiteSwift (2.12.0):
-    - TensorFlowLiteSwift/Core (= 2.12.0)
-  - TensorFlowLiteSwift/Core (2.12.0):
-    - TensorFlowLiteC (= 2.12.0)
-  - TensorFlowLiteSwift/CoreML (2.12.0):
-    - TensorFlowLiteC/CoreML (= 2.12.0)
-    - TensorFlowLiteSwift/Core (= 2.12.0)
-  - TensorFlowLiteSwift/Metal (2.12.0):
-    - TensorFlowLiteC/Metal (= 2.12.0)
-    - TensorFlowLiteSwift/Core (= 2.12.0)
-  - tflite_flutter (0.0.1):
-    - Flutter
-    - TensorFlowLiteSwift (= 2.12.0)
-    - TensorFlowLiteSwift/CoreML (= 2.12.0)
-    - TensorFlowLiteSwift/Metal (= 2.12.0)
+  - SwiftProtobuf (1.35.0)
   - url_launcher_ios (0.0.1):
     - Flutter
 
@@ -1492,7 +1470,6 @@ DEPENDENCIES:
   - google_sign_in_ios (from `.symlinks/plugins/google_sign_in_ios/darwin`)
   - permission_handler_apple (from `.symlinks/plugins/permission_handler_apple/ios`)
   - reactive_ble_mobile (from `.symlinks/plugins/reactive_ble_mobile/darwin`)
-  - tflite_flutter (from `.symlinks/plugins/tflite_flutter/ios`)
   - url_launcher_ios (from `.symlinks/plugins/url_launcher_ios/ios`)
 
 SPEC REPOS:
@@ -1526,8 +1503,6 @@ SPEC REPOS:
     - Protobuf
     - RecaptchaInterop
     - SwiftProtobuf
-    - TensorFlowLiteC
-    - TensorFlowLiteSwift
 
 EXTERNAL SOURCES:
   camera_avfoundation:
@@ -1552,8 +1527,6 @@ EXTERNAL SOURCES:
     :path: ".symlinks/plugins/permission_handler_apple/ios"
   reactive_ble_mobile:
     :path: ".symlinks/plugins/reactive_ble_mobile/darwin"
-  tflite_flutter:
-    :path: ".symlinks/plugins/tflite_flutter/ios"
   url_launcher_ios:
     :path: ".symlinks/plugins/url_launcher_ios/ios"
 
@@ -1597,12 +1570,9 @@ SPEC CHECKSUMS:
   Protobuf: 8d5596f7468be5400861a6bbfb2dfe9d0d1cde34
   reactive_ble_mobile: ea97709e18fa6f0b0592909725d7ae7e1c595b64
   RecaptchaInterop: 11e0b637842dfb48308d242afc3f448062325aba
-  SwiftProtobuf: c901f00a3e125dc33cac9b16824da85682ee47da
-  TensorFlowLiteC: 20785a69299185a379ba9852b6625f00afd7984a
-  TensorFlowLiteSwift: 3a4928286e9e35bdd3e17970f48e53c80d25e793
-  tflite_flutter: 64b192e11352fe36943ab6656e1d49207f1a5595
+  SwiftProtobuf: 24536165ff31bd2bd1aa8ad9307a128dc0a06dd0
   url_launcher_ios: 7a95fa5b60cc718a708b8f2966718e93db0cef1b
 
-PODFILE CHECKSUM: 934e23a140ab7c72d5bdf6d2e9f514c3caf888f2
+PODFILE CHECKSUM: 51ba8f12163a99fb310430e6e7da9aea35d7649f
 
 COCOAPODS: 1.16.2
