@@ -1,7 +1,8 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-// Import the file Pigeon just generated
 import '../features/tracking/tracking_api.g.dart';
+// 1. You MUST import the overlay file we created
+import '../features/tracking/ball_overlay.dart';
 
 class CameraPage extends StatefulWidget {
   final Future<void> Function(String) onSendCommand;
@@ -14,26 +15,25 @@ class CameraPage extends StatefulWidget {
   State<CameraPage> createState() => _CameraPageState();
 }
 
-// We implement BallDetectionApi to receive the stream from Swift
 class _CameraPageState extends State<CameraPage> implements BallDetectionApi {
   final BallTrackerApi _api = BallTrackerApi();
   int? _textureId;
   String? _errorMessage;
+
+  // 2. Add this variable to store the ball's position
   BallDetection? _latestDetection;
 
   @override
   void initState() {
     super.initState();
-    // 1. Tell Pigeon that THIS class will handle incoming Swift messages
+    // Tells Pigeon to send native detections to THIS class
     BallDetectionApi.setup(this);
-    // 2. Start the camera
     _startNativeCamera();
   }
 
   Future<void> _startNativeCamera() async {
     try {
       final config = TrackingConfig(useFrontCamera: false);
-      // Calls Swift: startTracking() and waits for the texture ID
       final id = await _api.startTracking(config);
       setState(() {
         _textureId = id;
@@ -45,16 +45,13 @@ class _CameraPageState extends State<CameraPage> implements BallDetectionApi {
 
   @override
   void dispose() {
-    // Clean up the native camera when leaving the page
     _api.stopTracking();
     super.dispose();
   }
 
-  // MARK: - Pigeon FlutterApi Callbacks (Swift -> Dart)
-
+  // 3. Update this method to actually handle the data from Swift
   @override
   void onDetection(BallDetection detection) {
-    // Swift found the ball! Update the UI.
     setState(() {
       _latestDetection = detection;
     });
@@ -62,7 +59,6 @@ class _CameraPageState extends State<CameraPage> implements BallDetectionApi {
 
   @override
   void onThermalWarning(ThermalLevel level) {
-    // We will handle device overheating warnings here later
     print("🔥 Thermal Warning: $level");
   }
 
@@ -72,7 +68,6 @@ class _CameraPageState extends State<CameraPage> implements BallDetectionApi {
       return Scaffold(body: Center(child: Text(_errorMessage!)));
     }
 
-    // Show a loader until Swift gives us the texture ID
     if (_textureId == null) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
@@ -82,16 +77,20 @@ class _CameraPageState extends State<CameraPage> implements BallDetectionApi {
       body: Stack(
         fit: StackFit.expand,
         children: [
-          // 3. The Magic Window: Flutter renders the raw GPU buffer zero-copy
+          // The Camera Feed
           Texture(textureId: _textureId!),
 
-          // Debug Overlay
+          // The Bounding Box Layer
+          // Now that _latestDetection is updated, this will draw the box
+          BallOverlay(detection: _latestDetection),
+
+          // Debug Text Overlay
           Positioned(
             top: 20,
             left: 20,
             child: Text(
               _latestDetection == null
-                  ? "Scanning Native 30fps..."
+                  ? "Searching for Tennis Ball..."
                   : "BALL FOUND: ${(_latestDetection!.confidence * 100).toStringAsFixed(1)}%",
               style: TextStyle(
                 color: _latestDetection == null
@@ -103,8 +102,6 @@ class _CameraPageState extends State<CameraPage> implements BallDetectionApi {
               ),
             ),
           ),
-
-          // TODO: Add CustomPainter here to draw the bounding box using _latestDetection
         ],
       ),
     );
