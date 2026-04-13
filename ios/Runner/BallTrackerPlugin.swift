@@ -79,37 +79,35 @@ class BallTrackerPlugin: NSObject, BallTrackerApi, CameraFrameDelegate {
                         return
                     }
                     
-                    if results.isEmpty { return }
-                    
-                    // Get the detection with the highest confidence
-                    guard let bestDetection = results.max(by: { $0.confidence < $1.confidence }) else { return }
-                    
-                    // Standard labels: YOLO usually calls a tennis ball 'sports ball'
-                    // but we will print it to be sure.
-                    let label = bestDetection.labels.first?.identifier ?? "unknown"
-                    let conf = bestDetection.confidence
-                    
-                    print("📱 Swift ML: Detected [\(label)] at \(Int(conf * 100))% confidence")
-                    
-                    // Send to Flutter if it's likely a ball (confidence > 30%)
-                    if conf > 0.3 {
-                        let bbox = bestDetection.boundingBox
-                        // Convert Vision (bottom-left) to Flutter (top-left) coordinates
-                        let x = Double(bbox.midX)
-                        let y = Double(1.0 - bbox.midY)
-                        
-                        let detection = BallDetection(
-                            x: x, y: y,
-                            width: Double(bbox.width),
-                            height: Double(bbox.height),
-                            confidence: Double(conf),
-                            isKalmanPrediction: false
-                        )
-                        
-                        DispatchQueue.main.async {
-                            self.detectionApi.onDetection(detection: detection) { _ in }
-                        }
+                    // 2. Filter for ONLY tennis balls (labeled as "sports ball")
+                    // and only those with a confidence higher than 40%
+                    let tennisBallDetections = results.filter { observation in
+                        let label = observation.labels.first?.identifier ?? ""
+                        return label == "sports ball" && observation.confidence > 0.4
                     }
+
+                    // 3. Find the "best" tennis ball in the frame
+                    guard let bestBall = tennisBallDetections.max(by: { $0.confidence < $1.confidence }) else {
+                        // If no tennis ball is found, tell Flutter to clear the old box
+                        // (Sending a null or zeroed detection depending on your API)
+                        return
+                    }
+
+                    // 4. Send ONLY this detection to Flutter
+                    let bbox = bestBall.boundingBox
+                    let detection = BallDetection(
+                        x: Double(bbox.midX),
+                        y: Double(1.0 - bbox.midY), // Keep the Y-flip for Flutter
+                        width: Double(bbox.width),
+                        height: Double(bbox.height),
+                        confidence: Double(bestBall.confidence),
+                        isKalmanPrediction: false
+                    )
+
+                    DispatchQueue.main.async {
+                        self.detectionApi.onDetection(detection: detection) { _ in }
+                    }
+                    
                 }
                 
                 request.imageCropAndScaleOption = .scaleFill
