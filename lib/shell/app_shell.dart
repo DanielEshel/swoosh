@@ -1,17 +1,11 @@
 // lib/shell/app_shell.dart
 
-import 'dart:async';
-import 'dart:io';
-import 'dart:convert';
-
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-// 1. ADD THIS IMPORT
-import 'package:firebase_database/firebase_database.dart';
-import 'package:permission_handler/permission_handler.dart';
-import 'package:flutter_reactive_ble/flutter_reactive_ble.dart';
 
 import 'package:swoosh/pages/pages.dart';
+// Import your new BLE service
+import '../services/ble_service.dart';
 
 class AppShell extends StatefulWidget {
   const AppShell({super.key});
@@ -23,157 +17,16 @@ class AppShell extends StatefulWidget {
 class _AppShellState extends State<AppShell> {
   int _selectedIndex = 0;
 
-  final FlutterReactiveBle _ble = FlutterReactiveBle();
-
-  String _btStatus = "Disconnected";
-  bool _isScanning = false;
-  bool _isConnected = false;
-  String? _deviceId;
-
-  String _sensorDistance = "--";
-
-  final Uuid _serviceUuid = Uuid.parse("12345678-1234-1234-1234-1234567890ab");
-  final Uuid _charUuidRx = Uuid.parse("12345678-1234-1234-1234-1234567890ac");
-  final Uuid _charUuidTx = Uuid.parse("12345678-1234-1234-1234-1234567890ad");
-
-  StreamSubscription<DiscoveredDevice>? _scanSub;
-  StreamSubscription<ConnectionStateUpdate>? _connSub;
-  StreamSubscription<List<int>>? _sensorSub;
-
-  Future<void> scanAndConnect() async {
-    if (Platform.isAndroid) {
-      await [
-        Permission.bluetoothScan,
-        Permission.bluetoothConnect,
-        Permission.location,
-      ].request();
-    }
-
-    setState(() {
-      _btStatus = "Scanning...";
-      _isScanning = true;
-    });
-
-    _scanSub = _ble.scanForDevices(
-      withServices: [_serviceUuid],
-      scanMode: ScanMode.lowLatency,
-    ).listen((device) async {
-      if (device.name == "SwooshESP32") {
-        await _scanSub?.cancel();
-        setState(() => _isScanning = false);
-        await _connectToDevice(device.id);
-      }
-    }, onError: (e) {
-      setState(() {
-        _btStatus = "Scan Error: $e";
-        _isScanning = false;
-      });
-    });
-  }
-
-  Future<void> _connectToDevice(String deviceId) async {
-    setState(() => _btStatus = "Connecting...");
-    _deviceId = deviceId;
-
-    _connSub = _ble
-        .connectToDevice(
-      id: deviceId,
-      connectionTimeout: const Duration(seconds: 6),
-    )
-        .listen((update) {
-      if (update.connectionState == DeviceConnectionState.connected) {
-        setState(() {
-          _isConnected = true;
-          _btStatus = "Connected";
-        });
-
-        _subscribeToSensor(deviceId);
-      } else if (update.connectionState == DeviceConnectionState.disconnected) {
-        _disconnect();
-      }
-    }, onError: (e) {
-      _disconnect();
-    });
-  }
-
-  // ----------------------------------------------------------------------
-  // 2. UPDATED SENSOR LOGIC: Upload to Firebase
-  // ----------------------------------------------------------------------
-  void _subscribeToSensor(String deviceId) {
-    final characteristic = QualifiedCharacteristic(
-      deviceId: deviceId,
-      serviceId: _serviceUuid,
-      characteristicId: _charUuidTx,
-    );
-
-    _sensorSub = _ble.subscribeToCharacteristic(characteristic).listen((data) {
-      final distStr = utf8.decode(data);
-
-      // Update UI locally
-      if (mounted) {
-        setState(() {
-          _sensorDistance = distStr;
-        });
-      }
-
-      // Upload to Firebase Realtime Database
-      final user = FirebaseAuth.instance.currentUser;
-      if (user != null) {
-        // Path: users/{uid}/sensor/distance
-        FirebaseDatabase.instance
-            .ref("users/${user.uid}/sensor/distance")
-            .set(distStr);
-      }
-    }, onError: (dynamic error) {
-      // print("Sensor error: $error");
-    });
-  }
-
-  Future<void> sendServoCommand(String cmd) async {
-    if (_deviceId == null) return;
-    final characteristic = QualifiedCharacteristic(
-      deviceId: _deviceId!,
-      serviceId: _serviceUuid,
-      characteristicId: _charUuidRx,
-    );
-    try {
-      await _ble.writeCharacteristicWithResponse(
-        characteristic,
-        value: cmd.codeUnits,
-      );
-    } catch (e) {
-      // print("Write error: $e");
-    }
-  }
-
-  void _disconnect() {
-    _scanSub?.cancel();
-    _connSub?.cancel();
-    _sensorSub?.cancel();
-
-    setState(() {
-      _isConnected = false;
-      _btStatus = "Disconnected";
-      _deviceId = null;
-      _sensorDistance = "--";
-    });
-  }
+  // Bring in the new Bluetooth singleton
+  final BleService _bleService = BleService();
 
   @override
   Widget build(BuildContext context) {
     final List<Widget> pages = [
-      HomeTab(
-        btStatus: _btStatus,
-        isScanning: _isScanning,
-        isConnected: _isConnected,
-        sensorDistance: _sensorDistance,
-        onConnect: scanAndConnect,
-        onDisconnect: _disconnect,
-      ),
-      CameraPage(
-        onSendCommand: sendServoCommand,
-        isConnected: _isConnected,
-      ),
+      // Cleaned constructors! The UI components will now
+      // fetch their own state from BleService.
+      const HomeTab(),
+      const CameraPage(),
       const Center(
           child: Text("Analytics Page", style: TextStyle(fontSize: 22))),
       const ProfilePage(),
@@ -184,10 +37,39 @@ class _AppShellState extends State<AppShell> {
         title: const Text("SWOOSH"),
         centerTitle: true,
         actions: [
+          // Global Bluetooth Status Icon
+          ListenableBuilder(
+            listenable: _bleService,
+            builder: (context, child) {
+              IconData icon;
+              Color color;
+
+              switch (_bleService.connectionState) {
+                case 'connected':
+                  icon = Icons.bluetooth_connected;
+                  color = Colors.greenAccent;
+                  break;
+                case 'scanning':
+                  icon = Icons.bluetooth_searching;
+                  color = Colors.orange;
+                  break;
+                default:
+                  icon = Icons.bluetooth_disabled;
+                  color = Colors.grey;
+              }
+
+              return Padding(
+                padding: const EdgeInsets.only(right: 8.0),
+                child: Icon(icon, color: color),
+              );
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.logout),
             onPressed: () async {
-              _disconnect();
+              // Safely disconnect hardware before logging out
+              await _bleService.disconnect();
+
               final navigator = Navigator.of(context);
               await FirebaseAuth.instance.signOut();
               navigator.pushNamedAndRemoveUntil('/welcome', (route) => false);
@@ -211,13 +93,5 @@ class _AppShellState extends State<AppShell> {
         ],
       ),
     );
-  }
-
-  @override
-  void dispose() {
-    _scanSub?.cancel();
-    _connSub?.cancel();
-    _sensorSub?.cancel();
-    super.dispose();
   }
 }

@@ -265,3 +265,144 @@ abstract class BallDetectionApi {
     }
   }
 }
+
+class BleCommandApi {
+  /// Constructor for [BleCommandApi].  The [binaryMessenger] named argument is
+  /// available for dependency injection.  If it is left null, the default
+  /// BinaryMessenger will be used which routes to the host platform.
+  BleCommandApi({BinaryMessenger? binaryMessenger})
+      : __pigeon_binaryMessenger = binaryMessenger;
+  final BinaryMessenger? __pigeon_binaryMessenger;
+
+  static const MessageCodec<Object?> pigeonChannelCodec = StandardMessageCodec();
+
+  Future<void> scanForDevices() async {
+    const String __pigeon_channelName = 'dev.flutter.pigeon.swoosh.BleCommandApi.scanForDevices';
+    final BasicMessageChannel<Object?> __pigeon_channel = BasicMessageChannel<Object?>(
+      __pigeon_channelName,
+      pigeonChannelCodec,
+      binaryMessenger: __pigeon_binaryMessenger,
+    );
+    final List<Object?>? __pigeon_replyList =
+        await __pigeon_channel.send(null) as List<Object?>?;
+    if (__pigeon_replyList == null) {
+      throw _createConnectionError(__pigeon_channelName);
+    } else if (__pigeon_replyList.length > 1) {
+      throw PlatformException(
+        code: __pigeon_replyList[0]! as String,
+        message: __pigeon_replyList[1] as String?,
+        details: __pigeon_replyList[2],
+      );
+    } else {
+      return;
+    }
+  }
+
+  Future<void> connectToDevice(String deviceId) async {
+    const String __pigeon_channelName = 'dev.flutter.pigeon.swoosh.BleCommandApi.connectToDevice';
+    final BasicMessageChannel<Object?> __pigeon_channel = BasicMessageChannel<Object?>(
+      __pigeon_channelName,
+      pigeonChannelCodec,
+      binaryMessenger: __pigeon_binaryMessenger,
+    );
+    final List<Object?>? __pigeon_replyList =
+        await __pigeon_channel.send(<Object?>[deviceId]) as List<Object?>?;
+    if (__pigeon_replyList == null) {
+      throw _createConnectionError(__pigeon_channelName);
+    } else if (__pigeon_replyList.length > 1) {
+      throw PlatformException(
+        code: __pigeon_replyList[0]! as String,
+        message: __pigeon_replyList[1] as String?,
+        details: __pigeon_replyList[2],
+      );
+    } else {
+      return;
+    }
+  }
+
+  Future<void> disconnectDevice() async {
+    const String __pigeon_channelName = 'dev.flutter.pigeon.swoosh.BleCommandApi.disconnectDevice';
+    final BasicMessageChannel<Object?> __pigeon_channel = BasicMessageChannel<Object?>(
+      __pigeon_channelName,
+      pigeonChannelCodec,
+      binaryMessenger: __pigeon_binaryMessenger,
+    );
+    final List<Object?>? __pigeon_replyList =
+        await __pigeon_channel.send(null) as List<Object?>?;
+    if (__pigeon_replyList == null) {
+      throw _createConnectionError(__pigeon_channelName);
+    } else if (__pigeon_replyList.length > 1) {
+      throw PlatformException(
+        code: __pigeon_replyList[0]! as String,
+        message: __pigeon_replyList[1] as String?,
+        details: __pigeon_replyList[2],
+      );
+    } else {
+      return;
+    }
+  }
+}
+
+abstract class BleStateApi {
+  static const MessageCodec<Object?> pigeonChannelCodec = StandardMessageCodec();
+
+  void onDeviceDiscovered(String id, String name);
+
+  void onConnectionStateChanged(String state);
+
+  static void setup(BleStateApi? api, {BinaryMessenger? binaryMessenger}) {
+    {
+      final BasicMessageChannel<Object?> __pigeon_channel = BasicMessageChannel<Object?>(
+          'dev.flutter.pigeon.swoosh.BleStateApi.onDeviceDiscovered', pigeonChannelCodec,
+          binaryMessenger: binaryMessenger);
+      if (api == null) {
+        __pigeon_channel.setMessageHandler(null);
+      } else {
+        __pigeon_channel.setMessageHandler((Object? message) async {
+          assert(message != null,
+          'Argument for dev.flutter.pigeon.swoosh.BleStateApi.onDeviceDiscovered was null.');
+          final List<Object?> args = (message as List<Object?>?)!;
+          final String? arg_id = (args[0] as String?);
+          assert(arg_id != null,
+              'Argument for dev.flutter.pigeon.swoosh.BleStateApi.onDeviceDiscovered was null, expected non-null String.');
+          final String? arg_name = (args[1] as String?);
+          assert(arg_name != null,
+              'Argument for dev.flutter.pigeon.swoosh.BleStateApi.onDeviceDiscovered was null, expected non-null String.');
+          try {
+            api.onDeviceDiscovered(arg_id!, arg_name!);
+            return wrapResponse(empty: true);
+          } on PlatformException catch (e) {
+            return wrapResponse(error: e);
+          }          catch (e) {
+            return wrapResponse(error: PlatformException(code: 'error', message: e.toString()));
+          }
+        });
+      }
+    }
+    {
+      final BasicMessageChannel<Object?> __pigeon_channel = BasicMessageChannel<Object?>(
+          'dev.flutter.pigeon.swoosh.BleStateApi.onConnectionStateChanged', pigeonChannelCodec,
+          binaryMessenger: binaryMessenger);
+      if (api == null) {
+        __pigeon_channel.setMessageHandler(null);
+      } else {
+        __pigeon_channel.setMessageHandler((Object? message) async {
+          assert(message != null,
+          'Argument for dev.flutter.pigeon.swoosh.BleStateApi.onConnectionStateChanged was null.');
+          final List<Object?> args = (message as List<Object?>?)!;
+          final String? arg_state = (args[0] as String?);
+          assert(arg_state != null,
+              'Argument for dev.flutter.pigeon.swoosh.BleStateApi.onConnectionStateChanged was null, expected non-null String.');
+          try {
+            api.onConnectionStateChanged(arg_state!);
+            return wrapResponse(empty: true);
+          } on PlatformException catch (e) {
+            return wrapResponse(error: e);
+          }          catch (e) {
+            return wrapResponse(error: PlatformException(code: 'error', message: e.toString()));
+          }
+        });
+      }
+    }
+  }
+}

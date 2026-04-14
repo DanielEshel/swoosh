@@ -272,3 +272,105 @@ class BallDetectionApi: BallDetectionApiProtocol {
     }
   }
 }
+/// Generated protocol from Pigeon that represents a handler of messages from Flutter.
+protocol BleCommandApi {
+  func scanForDevices() throws
+  func connectToDevice(deviceId: String) throws
+  func disconnectDevice() throws
+}
+
+/// Generated setup class from Pigeon to handle messages through the `binaryMessenger`.
+class BleCommandApiSetup {
+  /// The codec used by BleCommandApi.
+  /// Sets up an instance of `BleCommandApi` to handle messages through the `binaryMessenger`.
+  static func setUp(binaryMessenger: FlutterBinaryMessenger, api: BleCommandApi?) {
+    let scanForDevicesChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.swoosh.BleCommandApi.scanForDevices", binaryMessenger: binaryMessenger)
+    if let api = api {
+      scanForDevicesChannel.setMessageHandler { _, reply in
+        do {
+          try api.scanForDevices()
+          reply(wrapResult(nil))
+        } catch {
+          reply(wrapError(error))
+        }
+      }
+    } else {
+      scanForDevicesChannel.setMessageHandler(nil)
+    }
+    let connectToDeviceChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.swoosh.BleCommandApi.connectToDevice", binaryMessenger: binaryMessenger)
+    if let api = api {
+      connectToDeviceChannel.setMessageHandler { message, reply in
+        let args = message as! [Any?]
+        let deviceIdArg = args[0] as! String
+        do {
+          try api.connectToDevice(deviceId: deviceIdArg)
+          reply(wrapResult(nil))
+        } catch {
+          reply(wrapError(error))
+        }
+      }
+    } else {
+      connectToDeviceChannel.setMessageHandler(nil)
+    }
+    let disconnectDeviceChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.swoosh.BleCommandApi.disconnectDevice", binaryMessenger: binaryMessenger)
+    if let api = api {
+      disconnectDeviceChannel.setMessageHandler { _, reply in
+        do {
+          try api.disconnectDevice()
+          reply(wrapResult(nil))
+        } catch {
+          reply(wrapError(error))
+        }
+      }
+    } else {
+      disconnectDeviceChannel.setMessageHandler(nil)
+    }
+  }
+}
+/// Generated protocol from Pigeon that represents Flutter messages that can be called from Swift.
+protocol BleStateApiProtocol {
+  func onDeviceDiscovered(id idArg: String, name nameArg: String, completion: @escaping (Result<Void, FlutterError>) -> Void)
+  func onConnectionStateChanged(state stateArg: String, completion: @escaping (Result<Void, FlutterError>) -> Void)
+}
+class BleStateApi: BleStateApiProtocol {
+  private let binaryMessenger: FlutterBinaryMessenger
+  init(binaryMessenger: FlutterBinaryMessenger) {
+    self.binaryMessenger = binaryMessenger
+  }
+  func onDeviceDiscovered(id idArg: String, name nameArg: String, completion: @escaping (Result<Void, FlutterError>) -> Void) {
+    let channelName: String = "dev.flutter.pigeon.swoosh.BleStateApi.onDeviceDiscovered"
+    let channel = FlutterBasicMessageChannel(name: channelName, binaryMessenger: binaryMessenger)
+    channel.sendMessage([idArg, nameArg] as [Any?]) { response in
+      guard let listResponse = response as? [Any?] else {
+        completion(.failure(createConnectionError(withChannelName: channelName)))
+        return
+      }
+      if listResponse.count > 1 {
+        let code: String = listResponse[0] as! String
+        let message: String? = nilOrValue(listResponse[1])
+        let details: String? = nilOrValue(listResponse[2])
+        completion(.failure(FlutterError(code: code, message: message, details: details)))
+      } else {
+        completion(.success(Void()))
+      }
+    }
+  }
+  func onConnectionStateChanged(state stateArg: String, completion: @escaping (Result<Void, FlutterError>) -> Void) {
+    let channelName: String = "dev.flutter.pigeon.swoosh.BleStateApi.onConnectionStateChanged"
+    let channel = FlutterBasicMessageChannel(name: channelName, binaryMessenger: binaryMessenger)
+    channel.sendMessage([stateArg] as [Any?]) { response in
+      guard let listResponse = response as? [Any?] else {
+        completion(.failure(createConnectionError(withChannelName: channelName)))
+        return
+      }
+      if listResponse.count > 1 {
+        let code: String = listResponse[0] as! String
+        let message: String? = nilOrValue(listResponse[1])
+        let details: String? = nilOrValue(listResponse[2])
+        completion(.failure(FlutterError(code: code, message: message, details: details)))
+      } else {
+        completion(.success(Void()))
+      }
+    }
+  }
+}

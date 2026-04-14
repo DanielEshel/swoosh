@@ -1,15 +1,14 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart'; // Added for session uploads
+
 import '../features/tracking/tracking_api.g.dart';
-// 1. You MUST import the overlay file we created
 import '../features/tracking/ball_overlay.dart';
 
 class CameraPage extends StatefulWidget {
-  final Future<void> Function(String) onSendCommand;
-  final bool isConnected;
-
-  const CameraPage(
-      {super.key, required this.onSendCommand, required this.isConnected});
+  // 1. Cleaned constructor to match the new AppShell
+  const CameraPage({super.key});
 
   @override
   State<CameraPage> createState() => _CameraPageState();
@@ -20,13 +19,15 @@ class _CameraPageState extends State<CameraPage> implements BallDetectionApi {
   int? _textureId;
   String? _errorMessage;
 
-  // 2. Add this variable to store the ball's position
   BallDetection? _latestDetection;
+
+  // Recording State Variables
+  bool _isRecording = false;
+  final List<Map<String, dynamic>> _sessionData = [];
 
   @override
   void initState() {
     super.initState();
-    // Tells Pigeon to send native detections to THIS class
     BallDetectionApi.setup(this);
     _startNativeCamera();
   }
@@ -49,12 +50,79 @@ class _CameraPageState extends State<CameraPage> implements BallDetectionApi {
     super.dispose();
   }
 
-  // 3. Update this method to actually handle the data from Swift
+  // --- RECORDING & FIREBASE LOGIC ---
+
+  void _toggleRecording() {
+    if (_isRecording) {
+      _stopAndUploadSession();
+    } else {
+      setState(() {
+        _isRecording = true;
+        _sessionData.clear(); // Clear previous session data
+      });
+    }
+  }
+
+  Future<void> _stopAndUploadSession() async {
+    setState(() {
+      _isRecording = false;
+    });
+
+    if (_sessionData.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No data captured to upload.')),
+      );
+      return;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Uploading session to Firebase...')),
+    );
+
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user != null) {
+        // Upload the recorded tracking points to Firestore
+        await FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.uid)
+            .collection('sessions')
+            .add({
+          'timestamp': FieldValue.serverTimestamp(),
+          'total_frames': _sessionData.length,
+          'tracking_data': _sessionData,
+        });
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Upload Complete! ✅')),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Upload Failed: $e')),
+        );
+      }
+    }
+  }
+
   @override
   void onDetection(BallDetection detection) {
     setState(() {
       _latestDetection = detection;
     });
+
+    // If we are recording, log the coordinate data
+    if (_isRecording) {
+      _sessionData.add({
+        'x': detection.x,
+        'y': detection.y,
+        'confidence': detection.confidence,
+        'time': DateTime.now().millisecondsSinceEpoch,
+      });
+    }
   }
 
   @override
@@ -81,7 +149,6 @@ class _CameraPageState extends State<CameraPage> implements BallDetectionApi {
           Texture(textureId: _textureId!),
 
           // The Bounding Box Layer
-          // Now that _latestDetection is updated, this will draw the box
           BallOverlay(detection: _latestDetection),
 
           // Debug Text Overlay
@@ -103,6 +170,15 @@ class _CameraPageState extends State<CameraPage> implements BallDetectionApi {
             ),
           ),
         ],
+      ),
+      // Recording Button Layer
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: _toggleRecording,
+        icon: Icon(_isRecording ? Icons.stop : Icons.fiber_manual_record),
+        label: Text(_isRecording ? "Stop & Save" : "Record Session"),
+        backgroundColor: _isRecording ? Colors.red : Colors.blue,
+        foregroundColor: Colors.white,
       ),
     );
   }

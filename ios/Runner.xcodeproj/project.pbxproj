@@ -13,6 +13,8 @@
 		5F1342DB2F8D365900014D27 /* Vision.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 5F1342DA2F8D365900014D27 /* Vision.framework */; settings = {ATTRIBUTES = (Weak, ); }; };
 		5F1342DD2F8D367D00014D27 /* CoreML.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 5F1342DC2F8D367D00014D27 /* CoreML.framework */; settings = {ATTRIBUTES = (Weak, ); }; };
 		5F1342E42F8D429500014D27 /* yolo26n.mlpackage in Sources */ = {isa = PBXBuildFile; fileRef = 5F1342E32F8D429500014D27 /* yolo26n.mlpackage */; };
+		5F1342E62F8ECFE100014D27 /* best.mlpackage in Sources */ = {isa = PBXBuildFile; fileRef = 5F1342E52F8ECFE000014D27 /* best.mlpackage */; };
+		5F1342E82F8ED76200014D27 /* BleServoController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F1342E72F8ED75F00014D27 /* BleServoController.swift */; };
 		5F5BBD5C2F8CE84200243AE3 /* TrackingApi.g.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F5BBD5B2F8CE84200243AE3 /* TrackingApi.g.swift */; };
 		5F5BBD5E2F8CE89B00243AE3 /* BallTrackerPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F5BBD5D2F8CE88000243AE3 /* BallTrackerPlugin.swift */; };
 		5F5BBD602F8CEA8900243AE3 /* CameraTextureController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F5BBD5F2F8CEA8400243AE3 /* CameraTextureController.swift */; };
@@ -61,6 +63,8 @@
 		5F1342DA2F8D365900014D27 /* Vision.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Vision.framework; path = System/Library/Frameworks/Vision.framework; sourceTree = SDKROOT; };
 		5F1342DC2F8D367D00014D27 /* CoreML.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreML.framework; path = System/Library/Frameworks/CoreML.framework; sourceTree = SDKROOT; };
 		5F1342E32F8D429500014D27 /* yolo26n.mlpackage */ = {isa = PBXFileReference; lastKnownFileType = folder.mlpackage; path = yolo26n.mlpackage; sourceTree = "<group>"; };
+		5F1342E52F8ECFE000014D27 /* best.mlpackage */ = {isa = PBXFileReference; lastKnownFileType = folder.mlpackage; path = best.mlpackage; sourceTree = "<group>"; };
+		5F1342E72F8ED75F00014D27 /* BleServoController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BleServoController.swift; sourceTree = "<group>"; };
 		5F5BBD5B2F8CE84200243AE3 /* TrackingApi.g.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrackingApi.g.swift; sourceTree = "<group>"; };
 		5F5BBD5D2F8CE88000243AE3 /* BallTrackerPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BallTrackerPlugin.swift; sourceTree = "<group>"; };
 		5F5BBD5F2F8CEA8400243AE3 /* CameraTextureController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraTextureController.swift; sourceTree = "<group>"; };
@@ -128,6 +132,7 @@
 			isa = PBXGroup;
 			children = (
 				5F1342E32F8D429500014D27 /* yolo26n.mlpackage */,
+				5F1342E52F8ECFE000014D27 /* best.mlpackage */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -167,6 +172,7 @@
 		97C146F01CF9000F007C117D /* Runner */ = {
 			isa = PBXGroup;
 			children = (
+				5F1342E72F8ED75F00014D27 /* BleServoController.swift */,
 				5F1342DE2F8D39A300014D27 /* Models */,
 				5F5BBD652F8CF8D200243AE3 /* CoreMLInference.swift */,
 				5F5BBD5F2F8CEA8400243AE3 /* CameraTextureController.swift */,
@@ -425,6 +431,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				5F1342E82F8ED76200014D27 /* BleServoController.swift in Sources */,
 				5F1342E42F8D429500014D27 /* yolo26n.mlpackage in Sources */,
 				5F5BBD5E2F8CE89B00243AE3 /* BallTrackerPlugin.swift in Sources */,
 				5F5BBD662F8CF8D500243AE3 /* CoreMLInference.swift in Sources */,
@@ -432,6 +439,7 @@
 				5F5BBD602F8CEA8900243AE3 /* CameraTextureController.swift in Sources */,
 				74858FAF1ED2DC5600515810 /* AppDelegate.swift in Sources */,
 				1498D2341E8E89220040F4C2 /* GeneratedPluginRegistrant.m in Sources */,
+				5F1342E62F8ECFE100014D27 /* best.mlpackage in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

@@ -50,3 +50,17 @@ abstract class BallDetectionApi {
   void onDetection(BallDetection detection);
   void onThermalWarning(ThermalLevel level);
 }
+
+@HostApi()
+abstract class BleCommandApi {
+  void scanForDevices();
+  void connectToDevice(String deviceId);
+  void disconnectDevice();
+}
+
+@FlutterApi()
+abstract class BleStateApi {
+  void onDeviceDiscovered(String id, String name);
+  void onConnectionStateChanged(
+      String state); // e.g., "scanning", "connected", "disconnected"
+}

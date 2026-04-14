@@ -1,114 +1,95 @@
-// lib/pages/home_tab.dart
-
 import 'package:flutter/material.dart';
+import '../services/ble_service.dart';
 
-class HomeTab extends StatelessWidget {
-  final String btStatus;
-  final bool isScanning;
-  final bool isConnected;
-  final String sensorDistance; // Receive data
-  final VoidCallback onConnect;
-  final VoidCallback onDisconnect;
+class HomeTab extends StatefulWidget {
+  const HomeTab({super.key});
 
-  const HomeTab({
-    super.key,
-    required this.btStatus,
-    required this.isScanning,
-    required this.isConnected,
-    required this.sensorDistance,
-    required this.onConnect,
-    required this.onDisconnect,
-  });
+  @override
+  State<HomeTab> createState() => _HomeTabState();
+}
+
+class _HomeTabState extends State<HomeTab> {
+  final BleService _bleService = BleService();
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Text(
-            'Swoosh Tennis Tracker',
-            style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 30),
-          Card(
-            margin: const EdgeInsets.symmetric(horizontal: 24),
-            elevation: 4,
-            child: Padding(
-              padding: const EdgeInsets.all(20.0),
-              child: Column(
-                children: [
-                  Icon(
-                    isConnected
-                        ? Icons.bluetooth_connected
-                        : Icons.bluetooth_disabled,
-                    size: 50,
-                    color: isConnected ? Colors.blue : Colors.grey,
-                  ),
+    return Scaffold(
+      appBar: AppBar(title: const Text('Swoosh')),
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            // Your existing UI stuff here...
 
-                  const SizedBox(height: 16),
-
-                  Text(
-                    btStatus,
-                    style: TextStyle(
-                      fontSize: 18,
-                      color: isConnected ? Colors.green : Colors.black87,
-                      fontWeight: FontWeight.bold,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-
-                  const SizedBox(height: 20),
-
-                  // --- NEW SENSOR DISPLAY ---
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.grey.shade100,
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: Colors.grey.shade300),
-                    ),
-                    child: Column(
-                      children: [
-                        const Text("Proximity Sensor",
-                            style: TextStyle(fontSize: 12, color: Colors.grey)),
-                        const SizedBox(height: 4),
-                        Text(
-                          "$sensorDistance cm",
-                          style: const TextStyle(
-                              fontSize: 28,
-                              fontWeight: FontWeight.bold,
-                              fontFamily: 'Monospace'),
-                        ),
-                      ],
-                    ),
-                  ),
-                  // --------------------------
-
-                  const SizedBox(height: 20),
-
-                  if (isScanning)
-                    const CircularProgressIndicator()
-                  else
-                    ElevatedButton.icon(
-                      onPressed: isConnected ? onDisconnect : onConnect,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor:
-                            isConnected ? Colors.redAccent : Colors.blueAccent,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 24, vertical: 12),
-                      ),
-                      icon: Icon(isConnected ? Icons.close : Icons.search),
-                      label:
-                          Text(isConnected ? "Disconnect" : "Scan & Connect"),
-                    ),
-                ],
-              ),
+            // The Bluetooth Connection UI
+            ListenableBuilder(
+              listenable: _bleService,
+              builder: (context, child) {
+                return _buildConnectionStatus();
+              },
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
+  }
+
+  Widget _buildConnectionStatus() {
+    if (_bleService.connectionState == 'connected') {
+      return ElevatedButton.icon(
+        icon: const Icon(Icons.bluetooth_connected, color: Colors.green),
+        label: const Text('Tracker Connected'),
+        onPressed: () => _bleService.disconnect(),
+      );
+    }
+
+    if (_bleService.connectionState == 'scanning') {
+      return const CircularProgressIndicator();
+    }
+
+    // Disconnected state
+    return ElevatedButton.icon(
+      icon: const Icon(Icons.bluetooth),
+      label: const Text('Connect Tracker'),
+      onPressed: () => _showDeviceSelectionSheet(),
+    );
+  }
+
+  void _showDeviceSelectionSheet() {
+    _bleService.scanForDevices();
+
+    showModalBottomSheet(
+        context: context,
+        builder: (context) {
+          return ListenableBuilder(
+            listenable: _bleService,
+            builder: (context, child) {
+              final devices = _bleService.discoveredDevices.entries.toList();
+
+              if (devices.isEmpty) {
+                return const SizedBox(
+                  height: 200,
+                  child: Center(child: Text("Scanning for Swoosh Tracker...")),
+                );
+              }
+
+              return ListView.builder(
+                itemCount: devices.length,
+                itemBuilder: (context, index) {
+                  final device = devices[index];
+                  return ListTile(
+                    title: Text(device.value), // Device Name
+                    subtitle: Text(device.key), // Device ID
+                    trailing: const Icon(Icons.link),
+                    onTap: () {
+                      _bleService.connectToDevice(device.key);
+                      Navigator.pop(context);
+                    },
+                  );
+                },
+              );
+            },
+          );
+        });
   }
 }
