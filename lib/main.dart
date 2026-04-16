@@ -28,8 +28,10 @@ void main() async {
     await FirebaseAppCheck.instance.activate(
       androidProvider:
           kDebugMode ? AndroidProvider.debug : AndroidProvider.playIntegrity,
-      appleProvider:
-          kDebugMode ? AppleProvider.debug : AppleProvider.deviceCheck,
+      // appleProvider:
+      //     kDebugMode ? AppleProvider.debug : AppleProvider.deviceCheck,
+      appleProvider: AppleProvider
+          .debug, // We dont have a real device check setup as it costs a ton of money to get the required Apple Developer account, so we'll just use debug for now.
     );
   }
 

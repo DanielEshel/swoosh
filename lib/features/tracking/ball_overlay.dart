@@ -32,13 +32,18 @@ class _BallPainter extends CustomPainter {
       ..strokeWidth = 4.0;
 
     // 2. Convert normalized (0-1) coordinates to actual screen pixels
-    final left = detection!.x * size.width;
-    final top = detection!.y * size.height;
+    // Since x and y represent the center of the ball, we treat them as centerX and centerY
+    final centerX = detection!.x * size.width;
+    final centerY = detection!.y * size.height;
     final width = detection!.width * size.width;
     final height = detection!.height * size.height;
 
-    // 3. Draw the bounding box
-    final rect = Rect.fromLTWH(left, top, width, height);
+    // 3. Draw the bounding box centered around the coordinates
+    final rect = Rect.fromCenter(
+      center: Offset(centerX, centerY),
+      width: width,
+      height: height,
+    );
     canvas.drawRect(rect, paint);
 
     // 4. Draw the confidence label
@@ -58,8 +63,11 @@ class _BallPainter extends CustomPainter {
     );
 
     textPainter.layout();
-    // Position the text slightly above the top-left corner of the box
-    textPainter.paint(canvas, Offset(left, top - 20));
+
+    // Position the text slightly above the top-left corner of the newly centered box
+    final textLeft = centerX - (width / 2);
+    final textTop = centerY - (height / 2);
+    textPainter.paint(canvas, Offset(textLeft, textTop - 20));
   }
 
   @override

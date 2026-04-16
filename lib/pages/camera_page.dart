@@ -21,6 +21,7 @@ class _CameraPageState extends State<CameraPage> implements BallDetectionApi {
   int? _textureId;
   String? _errorMessage;
   BallDetection? _latestDetection;
+  Timer? _clearDetectionTimer;
 
   // Recording & Data State
   bool _isRecording = false;
@@ -47,6 +48,7 @@ class _CameraPageState extends State<CameraPage> implements BallDetectionApi {
   @override
   void dispose() {
     _api.stopTracking();
+    _clearDetectionTimer?.cancel();
     super.dispose();
   }
 
@@ -111,6 +113,14 @@ class _CameraPageState extends State<CameraPage> implements BallDetectionApi {
   void onDetection(BallDetection detection) {
     if (mounted) {
       setState(() => _latestDetection = detection);
+      // Cancel any existing timer to prevent premature clearing
+      _clearDetectionTimer?.cancel();
+      // If we don't receive another detection in 150ms, assume the ball is gone and clear the UI
+      _clearDetectionTimer = Timer(const Duration(milliseconds: 150), () {
+        if (mounted) {
+          setState(() => _latestDetection = null);
+        }
+      });
       if (_isRecording) {
         _sessionData.add({
           'x': detection.x,
