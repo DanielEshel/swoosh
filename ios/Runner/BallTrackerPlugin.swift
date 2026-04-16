@@ -17,8 +17,6 @@ class BallTrackerPlugin: NSObject, BallTrackerApi, CameraFrameDelegate {
     
     private var bleController: BleServoController?
     
-    // Memory of the servo's physical angle for smooth tracking
-    private var currentPanAngle: Double = 90.0
     
     init(messenger: FlutterBinaryMessenger, registry: FlutterTextureRegistry) {
         self.binaryMessenger = messenger
@@ -35,12 +33,19 @@ class BallTrackerPlugin: NSObject, BallTrackerApi, CameraFrameDelegate {
     
     func startTracking(config: TrackingConfig, completion: @escaping (Result<Int64, Error>) -> Void) {
         print("📱 Swift: Starting native camera and ML pipeline...")
-        do {
-            mlInference = try CoreMLInference()
-        } catch {
-            print("📱 Swift: Failed to load ML Model: \(error)")
+        
+        // Only load the model if it's not already loaded to save memory/time
+        if mlInference == nil {
+            do {
+                mlInference = try CoreMLInference()
+            } catch {
+                print("📱 Swift: Failed to load ML Model: \(error)")
+                completion(.failure(error))
+                return
+            }
         }
         
+        // Re-initialize camera controller if it was previously nil-ed out
         if cameraController == nil {
             cameraController = CameraTextureController(registry: self.registry)
             cameraController?.frameDelegate = self
@@ -54,10 +59,15 @@ class BallTrackerPlugin: NSObject, BallTrackerApi, CameraFrameDelegate {
             completion(.success(0))
         }
     }
-    
+
     func stopTracking() throws {
+        print("📱 Swift: Stopping tracking and releasing resources...")
         cameraController?.stopCamera()
         cameraController?.frameDelegate = nil
+        
+        // CRITICAL: Release the heavy objects to prevent memory accumulation
+        cameraController = nil
+        mlInference = nil
     }
     
     func didCaptureFrame(pixelBuffer: CVPixelBuffer) {
@@ -81,26 +91,16 @@ class BallTrackerPlugin: NSObject, BallTrackerApi, CameraFrameDelegate {
                 guard let bestBall = tennisBallDetections.max(by: { $0.confidence < $1.confidence }) else { return }
 
                 let bbox = bestBall.boundingBox
-                let centerX = bbox.midX
-                
-                // --- PROPORTIONAL TRACKING LOGIC ---
-                // Calculate distance from center (0.5 is dead center)
-                let error = centerX - 0.5
-                
-                // Create a 10% deadzone in the middle so it doesn't vibrate when perfectly aimed
-                if abs(error) > 0.05 {
-                    
-                    // Convert error into a smooth rotation. 8.0 = max 4 degrees of movement per frame.
-                    let delta = error * 8.0
-                    
-                    // Note: If the servo turns the WRONG way (runs away from the ball), change += to -=
-                    self.currentPanAngle -= delta
-                    
-                    // Safety clamp between 0 and 180 degrees
-                    self.currentPanAngle = max(0, min(180, self.currentPanAngle))
-                    
-                    // Format the angle as a clean string ("95") and send it
-                    let commandString = String(Int(self.currentPanAngle))
+                let centerX = bbox.midX // normalized 0.0 to 1.0
+
+                // Calculate relative error:
+                // -0.5 (left edge), 0 (center), 0.5 (right edge)
+                let relativeError = centerX - 0.5
+
+                // Only send command if outside a 10% deadzone to save BLE bandwidth
+                if abs(relativeError) > 0.05 {
+                    // The ESP32 will parse this and decide how many degrees to move
+                    let commandString = String(format: "%.2f", relativeError)
                     self.bleController?.sendServoCommand(command: commandString)
                 }
 
