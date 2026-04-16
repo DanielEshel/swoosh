@@ -146,6 +146,8 @@ class BallTrackerApiCodec: FlutterStandardMessageCodec {
 protocol BallTrackerApi {
   func startTracking(config: TrackingConfig, completion: @escaping (Result<Int64, Error>) -> Void)
   func stopTracking() throws
+  func startRecording() throws
+  func stopRecording(completion: @escaping (Result<String, Error>) -> Void)
 }
 
 /// Generated setup class from Pigeon to handle messages through the `binaryMessenger`.
@@ -183,6 +185,34 @@ class BallTrackerApiSetup {
       }
     } else {
       stopTrackingChannel.setMessageHandler(nil)
+    }
+    let startRecordingChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.swoosh.BallTrackerApi.startRecording", binaryMessenger: binaryMessenger, codec: codec)
+    if let api = api {
+      startRecordingChannel.setMessageHandler { _, reply in
+        do {
+          try api.startRecording()
+          reply(wrapResult(nil))
+        } catch {
+          reply(wrapError(error))
+        }
+      }
+    } else {
+      startRecordingChannel.setMessageHandler(nil)
+    }
+    let stopRecordingChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.swoosh.BallTrackerApi.stopRecording", binaryMessenger: binaryMessenger, codec: codec)
+    if let api = api {
+      stopRecordingChannel.setMessageHandler { _, reply in
+        api.stopRecording { result in
+          switch result {
+          case .success(let res):
+            reply(wrapResult(res))
+          case .failure(let error):
+            reply(wrapError(error))
+          }
+        }
+      }
+    } else {
+      stopRecordingChannel.setMessageHandler(nil)
     }
   }
 }

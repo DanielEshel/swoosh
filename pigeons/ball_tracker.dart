@@ -42,6 +42,11 @@ abstract class BallTrackerApi {
       TrackingConfig config); // Returns the textureId for the camera feed
 
   void stopTracking();
+
+  void startRecording();
+
+  @async
+  String stopRecording(); // Returns the local path to the .mp4 file
 }
 
 // FlutterApi: Swift calls these methods to push data to Dart

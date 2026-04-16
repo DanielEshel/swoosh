@@ -2,6 +2,7 @@ import Foundation
 import Flutter
 import Vision
 import CoreVideo
+import AVFoundation
 
 extension FlutterError: Swift.Error {}
 
@@ -16,7 +17,13 @@ class BallTrackerPlugin: NSObject, BallTrackerApi, CameraFrameDelegate {
     private let inferenceQueue = DispatchQueue(label: "com.swoosh.inference", qos: .userInitiated)
     
     private var bleController: BleServoController?
-    
+
+    // Video Recording Properties
+    private var assetWriter: AVAssetWriter?
+    private var assetWriterInput: AVAssetWriterInput?
+    private var pixelBufferAdaptor: AVAssetWriterInputPixelBufferAdaptor?
+    private var isRecording = false
+    private var recordingStartTime: CMTime?
     
     init(messenger: FlutterBinaryMessenger, registry: FlutterTextureRegistry) {
         self.binaryMessenger = messenger
@@ -25,27 +32,23 @@ class BallTrackerPlugin: NSObject, BallTrackerApi, CameraFrameDelegate {
         super.init()
         
         self.bleController = BleServoController(binaryMessenger: messenger)
-        
         if let controller = self.bleController {
             BleCommandApiSetup.setUp(binaryMessenger: messenger, api: controller)
         }
     }
     
     func startTracking(config: TrackingConfig, completion: @escaping (Result<Int64, Error>) -> Void) {
-        print("📱 Swift: Starting native camera and ML pipeline...")
+        print("📱 Swift: Initializing Tracker resources...")
         
-        // Only load the model if it's not already loaded to save memory/time
         if mlInference == nil {
             do {
                 mlInference = try CoreMLInference()
             } catch {
-                print("📱 Swift: Failed to load ML Model: \(error)")
                 completion(.failure(error))
                 return
             }
         }
         
-        // Re-initialize camera controller if it was previously nil-ed out
         if cameraController == nil {
             cameraController = CameraTextureController(registry: self.registry)
             cameraController?.frameDelegate = self
@@ -61,16 +64,67 @@ class BallTrackerPlugin: NSObject, BallTrackerApi, CameraFrameDelegate {
     }
 
     func stopTracking() throws {
-        print("📱 Swift: Stopping tracking and releasing resources...")
+        print("📱 Swift: Disposing Tracker resources...")
         cameraController?.stopCamera()
         cameraController?.frameDelegate = nil
-        
-        // CRITICAL: Release the heavy objects to prevent memory accumulation
         cameraController = nil
         mlInference = nil
+        isRecording = false
     }
+
+    // --- Recording Interface ---
+    
+        
+        func startRecording() throws {
+            let outputURL = FileManager.default.temporaryDirectory.appendingPathComponent("swoosh_capture.mp4")
+            try? FileManager.default.removeItem(at: outputURL)
+
+            guard let writer = try? AVAssetWriter(outputURL: outputURL, fileType: .mp4) else { return }
+            
+            let settings: [String: Any] = [
+                AVVideoCodecKey: AVVideoCodecType.h264,
+                AVVideoWidthKey: 720,
+                AVVideoHeightKey: 1280
+            ]
+            
+            let input = AVAssetWriterInput(mediaType: .video, outputSettings: settings)
+            input.expectsMediaDataInRealTime = true
+            let adaptor = AVAssetWriterInputPixelBufferAdaptor(assetWriterInput: input, sourcePixelBufferAttributes: nil)
+            
+            if writer.canAdd(input) {
+                writer.add(input)
+                writer.startWriting()
+                self.assetWriter = writer
+                self.assetWriterInput = input
+                self.pixelBufferAdaptor = adaptor
+                self.isRecording = true
+                self.recordingStartTime = nil
+            }
+        }
+
+        // Pigeon @async methods require a completion handler with a Result type
+        func stopRecording(completion: @escaping (Result<String, Error>) -> Void) {
+            isRecording = false
+            assetWriterInput?.markAsFinished()
+            assetWriter?.finishWriting {
+                let path = self.assetWriter?.outputURL.path ?? ""
+                completion(.success(path))
+            }
+        }
     
     func didCaptureFrame(pixelBuffer: CVPixelBuffer) {
+        let currentTime = CMTime(seconds: CACurrentMediaTime(), preferredTimescale: 600)
+        
+        // 1. Record Frame if active
+        if isRecording, let adaptor = pixelBufferAdaptor, assetWriterInput?.isReadyForMoreMediaData == true {
+            if recordingStartTime == nil {
+                recordingStartTime = currentTime
+                assetWriter?.startSession(atSourceTime: currentTime)
+            }
+            adaptor.append(pixelBuffer, withPresentationTime: currentTime)
+        }
+
+        // 2. Process ML Inference
         guard let ml = mlInference, !isProcessingFrame else { return }
         
         inferenceQueue.async { [weak self] in
@@ -79,42 +133,39 @@ class BallTrackerPlugin: NSObject, BallTrackerApi, CameraFrameDelegate {
             
             let request = VNCoreMLRequest(model: ml.visionModel) { request, error in
                 defer { self.isProcessingFrame = false }
-                
                 guard let results = request.results as? [VNRecognizedObjectObservation] else { return }
                 
                 let tennisBallDetections = results.filter { observation in
                     let label = observation.labels.first?.identifier ?? ""
-                    // I included multiple common YOLO ball labels just in case
-                    return (label == "tennis_ball" || label == "tennis ball" || label == "sports ball") && observation.confidence > 0.5
+                    return (label.contains("ball")) && observation.confidence > 0.5
                 }
 
-                guard let bestBall = tennisBallDetections.max(by: { $0.confidence < $1.confidence }) else { return }
+                if let bestBall = tennisBallDetections.max(by: { $0.confidence < $1.confidence }) {
+                    let bbox = bestBall.boundingBox
+                    let centerX = bbox.midX
+                    
+                    // --- ESP32 RELATIVE LOGIC ---
+                    let relativeError = centerX - 0.5
+                    
+                    // 10% Deadzone check
+                    if abs(relativeError) > 0.05 {
+                        let commandString = String(format: "%.2f", relativeError)
+                        self.bleController?.sendServoCommand(command: commandString)
+                    }
 
-                let bbox = bestBall.boundingBox
-                let centerX = bbox.midX // normalized 0.0 to 1.0
+                    // Send UI Update to Flutter
+                    let detection = BallDetection(
+                        x: Double(bbox.midX),
+                        y: Double(1.0 - bbox.midY),
+                        width: Double(bbox.width),
+                        height: Double(bbox.height),
+                        confidence: Double(bestBall.confidence),
+                        isKalmanPrediction: false
+                    )
 
-                // Calculate relative error:
-                // -0.5 (left edge), 0 (center), 0.5 (right edge)
-                let relativeError = centerX - 0.5
-
-                // Only send command if outside a 10% deadzone to save BLE bandwidth
-                if abs(relativeError) > 0.05 {
-                    // The ESP32 will parse this and decide how many degrees to move
-                    let commandString = String(format: "%.2f", relativeError)
-                    self.bleController?.sendServoCommand(command: commandString)
-                }
-
-                let detection = BallDetection(
-                    x: Double(bbox.midX),
-                    y: Double(1.0 - bbox.midY),
-                    width: Double(bbox.width),
-                    height: Double(bbox.height),
-                    confidence: Double(bestBall.confidence),
-                    isKalmanPrediction: false
-                )
-
-                DispatchQueue.main.async {
-                    self.detectionApi.onDetection(detection: detection) { _ in }
+                    DispatchQueue.main.async {
+                        self.detectionApi.onDetection(detection: detection) { _ in }
+                    }
                 }
             }
             

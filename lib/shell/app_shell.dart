@@ -26,7 +26,7 @@ class _AppShellState extends State<AppShell> {
       // Cleaned constructors! The UI components will now
       // fetch their own state from BleService.
       const HomeTab(),
-      const CameraPage(),
+      CameraPage(isConnected: _bleService.connectionState == 'connected'),
       const Center(
           child: Text("Analytics Page", style: TextStyle(fontSize: 22))),
       const ProfilePage(),
