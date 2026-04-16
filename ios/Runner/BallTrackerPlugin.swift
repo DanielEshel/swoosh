@@ -5,32 +5,29 @@ import CoreVideo
 
 extension FlutterError: Swift.Error {}
 
-// Add CameraFrameDelegate to the class inheritance
 class BallTrackerPlugin: NSObject, BallTrackerApi, CameraFrameDelegate {
     private var binaryMessenger: FlutterBinaryMessenger
     private var detectionApi: BallDetectionApi
     private var cameraController: CameraTextureController?
     private var registry: FlutterTextureRegistry
     
-    // ML Properties
     private var mlInference: CoreMLInference?
     private var isProcessingFrame = false
     private let inferenceQueue = DispatchQueue(label: "com.swoosh.inference", qos: .userInitiated)
     
-    // NEW: Bluetooth Manager for the high-speed tracking loop
     private var bleController: BleServoController?
+    
+    // Memory of the servo's physical angle for smooth tracking
+    private var currentPanAngle: Double = 90.0
     
     init(messenger: FlutterBinaryMessenger, registry: FlutterTextureRegistry) {
         self.binaryMessenger = messenger
         self.registry = registry
         self.detectionApi = BallDetectionApi(binaryMessenger: messenger)
-        
         super.init()
         
-        // Initialize BLE Controller
         self.bleController = BleServoController(binaryMessenger: messenger)
         
-        // Register the Pigeon HostApi so Flutter can call scanForDevices(), connectToDevice(), etc.
         if let controller = self.bleController {
             BleCommandApiSetup.setUp(binaryMessenger: messenger, api: controller)
         }
@@ -38,16 +35,12 @@ class BallTrackerPlugin: NSObject, BallTrackerApi, CameraFrameDelegate {
     
     func startTracking(config: TrackingConfig, completion: @escaping (Result<Int64, Error>) -> Void) {
         print("📱 Swift: Starting native camera and ML pipeline...")
-        
-        // 1. Initialize the ML Model
         do {
             mlInference = try CoreMLInference()
-            print("📱 Swift: YOLO CoreML Model loaded successfully.")
         } catch {
             print("📱 Swift: Failed to load ML Model: \(error)")
         }
         
-        // 2. Start Camera and set delegate
         if cameraController == nil {
             cameraController = CameraTextureController(registry: self.registry)
             cameraController?.frameDelegate = self
@@ -63,12 +56,10 @@ class BallTrackerPlugin: NSObject, BallTrackerApi, CameraFrameDelegate {
     }
     
     func stopTracking() throws {
-        print("📱 Swift: Stopping camera...")
         cameraController?.stopCamera()
         cameraController?.frameDelegate = nil
     }
     
-    // MARK: - CameraFrameDelegate
     func didCaptureFrame(pixelBuffer: CVPixelBuffer) {
         guard let ml = mlInference, !isProcessingFrame else { return }
         
@@ -79,46 +70,43 @@ class BallTrackerPlugin: NSObject, BallTrackerApi, CameraFrameDelegate {
             let request = VNCoreMLRequest(model: ml.visionModel) { request, error in
                 defer { self.isProcessingFrame = false }
                 
-                if let error = error {
-                    print("📱 Swift ML Error: \(error.localizedDescription)")
-                    return
-                }
+                guard let results = request.results as? [VNRecognizedObjectObservation] else { return }
                 
-                // Now that the model has NMS, results will be VNRecognizedObjectObservation
-                guard let results = request.results as? [VNRecognizedObjectObservation] else {
-                    return
-                }
-                
-                // 2. Filter for ONLY tennis balls using your new model's labels
-                // and only those with a confidence higher than 40%
                 let tennisBallDetections = results.filter { observation in
                     let label = observation.labels.first?.identifier ?? ""
-                    return (label == "tennis_ball" || label == "tennis ball") && observation.confidence > 0.4
+                    // I included multiple common YOLO ball labels just in case
+                    return (label == "tennis_ball" || label == "tennis ball" || label == "sports ball") && observation.confidence > 0.5
                 }
 
-                // 3. Find the "best" tennis ball in the frame
-                guard let bestBall = tennisBallDetections.max(by: { $0.confidence < $1.confidence }) else {
-                    // If no tennis ball is found, tell Flutter to clear the old box
-                    return
-                }
+                guard let bestBall = tennisBallDetections.max(by: { $0.confidence < $1.confidence }) else { return }
 
-                // --- THE NEW NATIVE TRACKING LOOP ---
                 let bbox = bestBall.boundingBox
-                
-                // Map the X coordinate of the bounding box (0.0 to 1.0) to a servo angle (0 to 180 degrees)
-                // Note: We use midX since Vision coordinates are normalized.
-                // If the phone camera feed is mirrored, you might need to invert this mapping
-                // by using: let targetAngle = 180 - Int(bbox.midX * 180.0)
                 let centerX = bbox.midX
-                let targetAngle = Int(centerX * 180.0)
                 
-                // Fire the command to the ESP32 natively (Zero Flutter latency)
-                self.bleController?.sendServoCommand(angle: targetAngle)
+                // --- PROPORTIONAL TRACKING LOGIC ---
+                // Calculate distance from center (0.5 is dead center)
+                let error = centerX - 0.5
+                
+                // Create a 10% deadzone in the middle so it doesn't vibrate when perfectly aimed
+                if abs(error) > 0.05 {
+                    
+                    // Convert error into a smooth rotation. 8.0 = max 4 degrees of movement per frame.
+                    let delta = error * 8.0
+                    
+                    // Note: If the servo turns the WRONG way (runs away from the ball), change += to -=
+                    self.currentPanAngle -= delta
+                    
+                    // Safety clamp between 0 and 180 degrees
+                    self.currentPanAngle = max(0, min(180, self.currentPanAngle))
+                    
+                    // Format the angle as a clean string ("95") and send it
+                    let commandString = String(Int(self.currentPanAngle))
+                    self.bleController?.sendServoCommand(command: commandString)
+                }
 
-                // 4. Send ONLY this detection to Flutter so the UI can draw the bounding box
                 let detection = BallDetection(
                     x: Double(bbox.midX),
-                    y: Double(1.0 - bbox.midY), // Keep the Y-flip for Flutter's coordinate system
+                    y: Double(1.0 - bbox.midY),
                     width: Double(bbox.width),
                     height: Double(bbox.height),
                     confidence: Double(bestBall.confidence),
@@ -128,7 +116,6 @@ class BallTrackerPlugin: NSObject, BallTrackerApi, CameraFrameDelegate {
                 DispatchQueue.main.async {
                     self.detectionApi.onDetection(detection: detection) { _ in }
                 }
-                
             }
             
             request.imageCropAndScaleOption = .scaleFill
