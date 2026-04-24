@@ -147,11 +147,11 @@ class BallTrackerPlugin: NSObject, BallTrackerApi, CameraFrameDelegate {
                     // --- ESP32 RELATIVE LOGIC ---
                     let relativeError = centerX - 0.5
                     
-                    // // 10% Deadzone check
-                    // if abs(relativeError) > 0.05 {
-                    //     let commandString = String(format: "%.2f", relativeError)
-                    //     self.bleController?.sendServoCommand(command: commandString)
-                    // }
+                    // no Deadzone check
+                    if abs(relativeError) >= 0 {
+                        let commandString = String(format: "%.2f", relativeError)
+                        self.bleController?.sendServoCommand(command: commandString)
+                    }
 
                     // Send UI Update to Flutter
                     let detection = BallDetection(
