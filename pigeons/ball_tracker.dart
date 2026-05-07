@@ -68,4 +68,5 @@ abstract class BleStateApi {
   void onDeviceDiscovered(String id, String name);
   void onConnectionStateChanged(
       String state); // e.g., "scanning", "connected", "disconnected"
+  void onSensorDataReceived(String data);
 }

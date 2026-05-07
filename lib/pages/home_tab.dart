@@ -75,8 +75,9 @@ class _HomeTabState extends State<HomeTab> {
                             const SizedBox(height: 4),
                             Text(
                               isConnected
-                                  ? "0.0 cm"
-                                  : "-- cm", // Static placeholder for now
+                                  // REPLACE the static "0.0 cm" with the live variable:
+                                  ? "${_bleService.currentDistance} cm"
+                                  : "-- cm",
                               style: const TextStyle(
                                   fontSize: 28,
                                   fontWeight: FontWeight.bold,

@@ -361,6 +361,7 @@ class BleCommandApiSetup {
 protocol BleStateApiProtocol {
   func onDeviceDiscovered(id idArg: String, name nameArg: String, completion: @escaping (Result<Void, FlutterError>) -> Void)
   func onConnectionStateChanged(state stateArg: String, completion: @escaping (Result<Void, FlutterError>) -> Void)
+  func onSensorDataReceived(data dataArg: String, completion: @escaping (Result<Void, FlutterError>) -> Void)
 }
 class BleStateApi: BleStateApiProtocol {
   private let binaryMessenger: FlutterBinaryMessenger
@@ -389,6 +390,24 @@ class BleStateApi: BleStateApiProtocol {
     let channelName: String = "dev.flutter.pigeon.swoosh.BleStateApi.onConnectionStateChanged"
     let channel = FlutterBasicMessageChannel(name: channelName, binaryMessenger: binaryMessenger)
     channel.sendMessage([stateArg] as [Any?]) { response in
+      guard let listResponse = response as? [Any?] else {
+        completion(.failure(createConnectionError(withChannelName: channelName)))
+        return
+      }
+      if listResponse.count > 1 {
+        let code: String = listResponse[0] as! String
+        let message: String? = nilOrValue(listResponse[1])
+        let details: String? = nilOrValue(listResponse[2])
+        completion(.failure(FlutterError(code: code, message: message, details: details)))
+      } else {
+        completion(.success(Void()))
+      }
+    }
+  }
+  func onSensorDataReceived(data dataArg: String, completion: @escaping (Result<Void, FlutterError>) -> Void) {
+    let channelName: String = "dev.flutter.pigeon.swoosh.BleStateApi.onSensorDataReceived"
+    let channel = FlutterBasicMessageChannel(name: channelName, binaryMessenger: binaryMessenger)
+    channel.sendMessage([dataArg] as [Any?]) { response in
       guard let listResponse = response as? [Any?] else {
         completion(.failure(createConnectionError(withChannelName: channelName)))
         return

@@ -14,7 +14,8 @@ class BleServoController: NSObject, CBCentralManagerDelegate, CBPeripheralDelega
     
     let serviceUUID = CBUUID(string: "12345678-1234-1234-1234-1234567890ab")
     let characteristicUUID = CBUUID(string: "12345678-1234-1234-1234-1234567890ac")
-    
+    let sensorCharacteristicUUID = CBUUID(string: "12345678-1234-1234-1234-1234567890ad")
+
     init(binaryMessenger: FlutterBinaryMessenger) {
         self.stateApi = BleStateApi(binaryMessenger: binaryMessenger)
         super.init()
@@ -49,6 +50,8 @@ class BleServoController: NSObject, CBCentralManagerDelegate, CBPeripheralDelega
             centralManager.cancelPeripheralConnection(peripheral)
         }
     }
+    
+    // MARK: - CBCentralManagerDelegate
     
     func centralManagerDidUpdateState(_ central: CBCentralManager) {
         if central.state == .poweredOn {
@@ -89,10 +92,12 @@ class BleServoController: NSObject, CBCentralManagerDelegate, CBPeripheralDelega
         self.connectedPeripheral = nil
     }
     
+    // MARK: - CBPeripheralDelegate
+    
     func peripheral(_ peripheral: CBPeripheral, didDiscoverServices error: Error?) {
         guard let services = peripheral.services else { return }
         for service in services {
-            peripheral.discoverCharacteristics([characteristicUUID], for: service)
+            peripheral.discoverCharacteristics([characteristicUUID, sensorCharacteristicUUID], for: service)
         }
     }
     
@@ -103,17 +108,33 @@ class BleServoController: NSObject, CBCentralManagerDelegate, CBPeripheralDelega
                 self.servoCharacteristic = characteristic
                 print("🔵 Swift BLE: Servo characteristic found and ready!")
             }
+            
+            if characteristic.uuid == sensorCharacteristicUUID {
+                peripheral.setNotifyValue(true, for: characteristic)
+                print("🟢 Swift BLE: Subscribed to Sensor updates!")
+            }
         }
     }
     
-    // MARK: - The String-Based Hardware Writer
-        func sendServoCommand(command: String) {
-            guard let peripheral = connectedPeripheral, let characteristic = servoCharacteristic else { return }
-            guard let data = command.data(using: .utf8) else { return }
-            
-            // dynamically check what the ESP32 actually allows right now
-            let writeType: CBCharacteristicWriteType = characteristic.properties.contains(.writeWithoutResponse) ? .withoutResponse : .withResponse
-            
-            peripheral.writeValue(data, for: characteristic, type: writeType)
+    func peripheral(_ peripheral: CBPeripheral, didUpdateValueFor characteristic: CBCharacteristic, error: Error?) {
+        if characteristic.uuid == sensorCharacteristicUUID, let data = characteristic.value {
+            if let distanceString = String(data: data, encoding: .utf8) {
+                print("Sensor Distance: \(distanceString) cm")
+                DispatchQueue.main.async {
+                    // This sends the data to Flutter via the method you added to Pigeon
+                    self.stateApi.onSensorDataReceived(data: distanceString) { _ in }
+                }
+            }
         }
+    }
+    
+    // MARK: - Flutter API Writer
+    
+    func sendServoCommand(command: String) {
+        guard let peripheral = connectedPeripheral, let characteristic = servoCharacteristic else { return }
+        guard let data = command.data(using: .utf8) else { return }
+        
+        let writeType: CBCharacteristicWriteType = characteristic.properties.contains(.writeWithoutResponse) ? .withoutResponse : .withResponse
+        peripheral.writeValue(data, for: characteristic, type: writeType)
+    }
 }

@@ -7,6 +7,7 @@ class BleService extends ChangeNotifier implements BleStateApi {
   factory BleService() => _instance;
 
   final BleCommandApi _commandApi = BleCommandApi();
+  int currentDistance = 0;
 
   String connectionState =
       'disconnected'; // 'disconnected', 'scanning', 'connected'
@@ -61,5 +62,16 @@ class BleService extends ChangeNotifier implements BleStateApi {
     // Auto-connect for a smoother experience (optional)
     // If you only have one ESP32, you can just instantly connect when found:
     // connectToDevice(id);
+  }
+
+  @override
+  void onSensorDataReceived(String data) {
+    try {
+      currentDistance = int.parse(data);
+      notifyListeners(); // Update the UI with the new distance
+      debugPrint("Proximity Sensor: $currentDistance cm");
+    } catch (e) {
+      debugPrint("Error parsing sensor data: $e");
+    }
   }
 }
