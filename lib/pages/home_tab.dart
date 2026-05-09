@@ -74,14 +74,14 @@ class _HomeTabState extends State<HomeTab> {
                                     fontSize: 12, color: Colors.grey)),
                             const SizedBox(height: 4),
                             Text(
-                              isConnected
-                                  ? "0.0 cm"
-                                  : "-- cm", // Static placeholder for now
-                              style: const TextStyle(
-                                  fontSize: 28,
-                                  fontWeight: FontWeight.bold,
-                                  fontFamily: 'Monospace'),
-                            ),
+  isConnected
+      ? "${_bleService.lastKnownDistance} cm" // <-- NOW IT USES THE REAL DATA
+      : "-- cm",
+  style: const TextStyle(
+      fontSize: 28,
+      fontWeight: FontWeight.bold,
+      fontFamily: 'Monospace'),
+),
                           ],
                         ),
                       ),
