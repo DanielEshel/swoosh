@@ -1,5 +1,4 @@
 import 'package:flutter/foundation.dart';
-// Adjust this import to point to your actual generated pigeon file
 import '../features/tracking/tracking_api.g.dart';
 
 class BleService extends ChangeNotifier implements BleStateApi {
@@ -8,12 +7,17 @@ class BleService extends ChangeNotifier implements BleStateApi {
 
   final BleCommandApi _commandApi = BleCommandApi();
 
-  String connectionState =
-      'disconnected'; // 'disconnected', 'scanning', 'connected'
-  Map<String, String> discoveredDevices = {}; // Maps deviceId to Name
+  // --- Connection State ---
+  String connectionState = 'disconnected'; 
+  Map<String, String> discoveredDevices = {}; 
+
+  // --- Live Hardware Metrics ---
+  double lastKnownDistance = 0.0;
+  double cameraFps = 0.0;
+  double modelFps = 0.0;
 
   BleService._internal() {
-    // Register this class to receive callbacks from the native Swift side
+    // Connects this class to the native Swift/iOS side
     BleStateApi.setup(this);
   }
 
@@ -50,16 +54,31 @@ class BleService extends ChangeNotifier implements BleStateApi {
   @override
   void onConnectionStateChanged(String state) {
     connectionState = state;
-    notifyListeners(); // Tells the UI to rebuild
+    notifyListeners(); 
   }
 
   @override
   void onDeviceDiscovered(String id, String name) {
     discoveredDevices[id] = name;
     notifyListeners();
+  }
 
-    // Auto-connect for a smoother experience (optional)
-    // If you only have one ESP32, you can just instantly connect when found:
-    // connectToDevice(id);
+  /// This is called every 500ms-1000ms by the ESP32.
+  @override
+  void onSensorDataReceived(String distance) {
+    // Convert the string to a number so we can use it for logic or UI
+    lastKnownDistance = double.tryParse(distance) ?? 0.0;
+    
+    // CRITICAL: notifyListeners() ensures your UI actually updates when the data arrives!
+    notifyListeners(); 
+    
+    debugPrint("🎾 Distance from ESP32: $lastKnownDistance cm");
+  }
+
+  /// Helper to update FPS metrics from your tracking view model
+  void updatePerformanceMetrics(double camFps, double mlFps) {
+    cameraFps = camFps;
+    modelFps = mlFps;
+    notifyListeners();
   }
 }

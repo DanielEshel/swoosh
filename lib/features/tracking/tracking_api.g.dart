@@ -61,6 +61,9 @@ class BallDetection {
     required this.height,
     required this.confidence,
     required this.isKalmanPrediction,
+    required this.currentShotNumber,
+    required this.cameraFps,
+    required this.modelFps,
   });
 
   double x;
@@ -75,6 +78,12 @@ class BallDetection {
 
   bool isKalmanPrediction;
 
+  int currentShotNumber;
+
+  double cameraFps;
+
+  double modelFps;
+
   Object encode() {
     return <Object?>[
       x,
@@ -83,6 +92,9 @@ class BallDetection {
       height,
       confidence,
       isKalmanPrediction,
+      currentShotNumber,
+      cameraFps,
+      modelFps,
     ];
   }
 
@@ -95,6 +107,9 @@ class BallDetection {
       height: result[3]! as double,
       confidence: result[4]! as double,
       isKalmanPrediction: result[5]! as bool,
+      currentShotNumber: result[6]! as int,
+      cameraFps: result[7]! as double,
+      modelFps: result[8]! as double,
     );
   }
 }
@@ -399,6 +414,8 @@ abstract class BleStateApi {
 
   void onConnectionStateChanged(String state);
 
+  void onSensorDataReceived(String distance);
+
   static void setup(BleStateApi? api, {BinaryMessenger? binaryMessenger}) {
     {
       final BasicMessageChannel<Object?> __pigeon_channel = BasicMessageChannel<Object?>(
@@ -444,6 +461,31 @@ abstract class BleStateApi {
               'Argument for dev.flutter.pigeon.swoosh.BleStateApi.onConnectionStateChanged was null, expected non-null String.');
           try {
             api.onConnectionStateChanged(arg_state!);
+            return wrapResponse(empty: true);
+          } on PlatformException catch (e) {
+            return wrapResponse(error: e);
+          }          catch (e) {
+            return wrapResponse(error: PlatformException(code: 'error', message: e.toString()));
+          }
+        });
+      }
+    }
+    {
+      final BasicMessageChannel<Object?> __pigeon_channel = BasicMessageChannel<Object?>(
+          'dev.flutter.pigeon.swoosh.BleStateApi.onSensorDataReceived', pigeonChannelCodec,
+          binaryMessenger: binaryMessenger);
+      if (api == null) {
+        __pigeon_channel.setMessageHandler(null);
+      } else {
+        __pigeon_channel.setMessageHandler((Object? message) async {
+          assert(message != null,
+          'Argument for dev.flutter.pigeon.swoosh.BleStateApi.onSensorDataReceived was null.');
+          final List<Object?> args = (message as List<Object?>?)!;
+          final String? arg_distance = (args[0] as String?);
+          assert(arg_distance != null,
+              'Argument for dev.flutter.pigeon.swoosh.BleStateApi.onSensorDataReceived was null, expected non-null String.');
+          try {
+            api.onSensorDataReceived(arg_distance!);
             return wrapResponse(empty: true);
           } on PlatformException catch (e) {
             return wrapResponse(error: e);

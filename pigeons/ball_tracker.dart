@@ -21,7 +21,11 @@ class BallDetection {
   double height;
   double confidence;
   bool isKalmanPrediction;
+  int currentShotNumber;
 
+  double cameraFps;
+  double modelFps;
+  
   BallDetection({
     required this.x,
     required this.y,
@@ -29,6 +33,9 @@ class BallDetection {
     required this.height,
     required this.confidence,
     required this.isKalmanPrediction,
+    required this.currentShotNumber,
+    required this.cameraFps,
+    required this.modelFps,
   });
 }
 
@@ -66,6 +73,8 @@ abstract class BleCommandApi {
 @FlutterApi()
 abstract class BleStateApi {
   void onDeviceDiscovered(String id, String name);
-  void onConnectionStateChanged(
-      String state); // e.g., "scanning", "connected", "disconnected"
+  void onConnectionStateChanged(String state); // e.g., "scanning", "connected", "disconnected"
+  
+  // ADDED: This allows Swift to push the HC-SR04 sensor data to Flutter
+  void onSensorDataReceived(String distance); 
 }

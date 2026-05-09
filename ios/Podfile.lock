@@ -1454,7 +1454,7 @@ PODS:
     - Protobuf (~> 3.5)
     - SwiftProtobuf (~> 1.0)
   - RecaptchaInterop (101.0.0)
-  - SwiftProtobuf (1.35.0)
+  - SwiftProtobuf (1.37.0)
   - url_launcher_ios (0.0.1):
     - Flutter
 
@@ -1570,7 +1570,7 @@ SPEC CHECKSUMS:
   Protobuf: 8d5596f7468be5400861a6bbfb2dfe9d0d1cde34
   reactive_ble_mobile: ea97709e18fa6f0b0592909725d7ae7e1c595b64
   RecaptchaInterop: 11e0b637842dfb48308d242afc3f448062325aba
-  SwiftProtobuf: 24536165ff31bd2bd1aa8ad9307a128dc0a06dd0
+  SwiftProtobuf: 3fafd1b2fb97e6d95ad9c8adb2215da9afec7c83
   url_launcher_ios: 7a95fa5b60cc718a708b8f2966718e93db0cef1b
 
 PODFILE CHECKSUM: 51ba8f12163a99fb310430e6e7da9aea35d7649f
